@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gestão de Folgas - Sexta-feira</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body class="bg-gray-50 font-sans">
+  <!-- Header -->
+  <header class="monday-gradient text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-6 py-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <img src="logo.png" alt="Logo da Empresa" class="h-10 w-auto" />
+          <div class="leading-tight">
+            <h1 class="text-3xl font-bold">Gestão de Folgas</h1>
+            <p class="text-purple-100 text-sm">Controle de folgas Globo Leilões</p>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-4">
+          <div class="text-right">
+            <div class="text-sm text-purple-100">Visualizando</div>
+            <div class="text-xl font-semibold" id="currentView">Todas as Sextas</div>
+          </div>
+          <div class="flex space-x-2">
+            <button onclick="showPendingRequests()"
+              class="bg-yellow-500 bg-opacity-90 hover:bg-opacity-100 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+              ⏳ Pendências (<span id="headerPendingCount">0</span>)
+            </button>
+            <button onclick="showAllLeaves()
+              " class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+              📊 Ver Todas as Folgas
+            </button>
+            <button onclick="showPasswordModal()"
+              class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duração-200">
+              👥 Colaboradores
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="bg-blue-100 p-3 rounded-lg">
+            <span class="text-2xl">👥</span>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">Total Colaboradores</p>
+            <p class="text-2xl font-bold text-gray-900" id="totalEmployees">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="bg-green-100 p-3 rounded-lg">
+            <span class="text-2xl">✅</span>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">De Folga</p>
+            <p class="text-2xl font-bold text-green-600" id="onLeave">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="bg-orange-100 p-3 rounded-lg">
+            <span class="text-2xl">💼</span>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">Trabalhando</p>
+            <p class="text-2xl font-bold text-orange-600" id="working">0</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="bg-yellow-100 p-3 rounded-lg">
+            <span class="text-2xl">⏳</span>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">Pendentes</p>
+            <p class="text-2xl font-bold text-yellow-600" id="pendingRequests">0</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">Filtrar por Período</h2>
+          <p class="text-gray-600 text-sm">Selecione o ano e mês para visualizar as sextas-feiras</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Ano</label>
+            <select id="yearSelect"
+              class="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Mês</label>
+            <select id="monthSelect"
+              class="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fridays -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">Sextas-feiras do Mês</h2>
+          <p class="text-gray-600 text-sm">Clique em uma sexta-feira para gerenciar as folgas</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button onclick="openRegisterLeaveModal()"
+            class="bg-[#16263E] hover:bg-[#16263E]/90 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-300 hover:-translate-y-1">
+            📝 Registrar Folga
+          </button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="fridaysGrid"></div>
+    </div>
+
+    <!-- Employees table -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-6 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900" id="tableTitle">
+          Colaboradores - Selecione uma sexta-feira
+        </h3>
+        <p class="text-gray-600 text-sm">Gerencie as folgas dos colaboradores</p>
+      </div>
+      <div class="overflow-x-auto max-h-96 overflow-y-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+            <tr>
+              <th class="text-left py-4 px-6 font-semibold text-gray-700">Colaborador</th>
+              <th class="text-left py-4 px-6 font-semibold text-gray-700">Departamento</th>
+              <th class="text-left py-4 px-6 font-semibold text-gray-700">Status</th>
+              <th class="text-left py-4 px-6 font-semibold text-gray-700">Observações</th>
+              <th class="text-center py-4 px-6 font-semibold text-gray-700">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="employeeTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+  const SUPABASE_URL = "https://omyojnkydyuxnqaigrzy.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9teW9qbmt5ZHl1eG5xYWlncnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4NDYyODEsImV4cCI6MjA3NTQyMjI4MX0.HdkeorXyOuJI_uy1HrEYH0WOKJn3FPzv-7rTq_J6VzQ";
+
+  window.supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  console.log("Supabase Conectado!");
+  
+</script>
+
+  <!-- Modais -->
+  <div id="infoModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 id="infoModalTitle" class="text-lg font-semibold">Título</h3>
+        <button type="button" onclick="closeInfoModal()" class="text-gray-500 hover:text-gray-700">✖</button>
+      </div>
+      <div id="infoModalContent" class="text-sm text-gray-700">...</div>
+    </div>
+  </div>
+
+  <div id="passwordModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50" style="display:none;">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-5">
+      <h3 id="passwordModalTitle" class="text-lg font-semibold mb-1">🔒 Acesso Restrito</h3>
+      <p id="passwordModalSubtitle" class="text-sm text-gray-600 mb-4">Digite a senha para continuar</p>
+      <form id="passwordForm" class="space-y-3">
+        <input id="passwordInput" type="password" class="w-full border rounded-lg px-3 py-2" placeholder="Senha"/>
+        <div id="passwordError" class="text-sm text-red-600 hidden">Senha incorreta.</div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="px-3 py-2 border rounded-lg" onclick="closePasswordModal()">Cancelar</button>
+          <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Entrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="registerLeaveModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <h3 class="text-lg font-semibold mb-4">📝 Registrar Folga</h3>
+      <form id="registerLeaveForm" class="space-y-3">
+        <label class="block text-sm font-medium">Colaborador</label>
+        <select id="leaveEmployeeSelect" class="w-full border rounded-lg px-3 py-2">
+          <option value="">Selecione...</option>
+        </select>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeRegisterLeaveModal()">Cancelar</button>
+          <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Registrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Página de Colaboradores (com header roxo igual à home) -->
+  <div id="employeesPage" class="hidden fixed inset-0 z-40 overflow-y-auto">
+    <header class="monday-gradient text-white shadow-lg sticky top-0 z-10">
+      <div class="max-w-7xl mx-auto px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <img src="logo.png" alt="Logo da Empresa" class="h-8 w-auto" />
+            <div class="leading-tight">
+              <h1 class="text-2xl font-bold">Gestão de Colaboradores</h1>
+              <p class="text-purple-100 text-xs">Cadastro e gerenciamento</p>
+            </div>
+          </div>
+          <button type="button" class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium" onclick="closeEmployeesPage()">Fechar</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="bg-gray-50 min-h-full">
+      <div class="max-w-7xl mx-auto px-6 py-6">
+        <!-- KPIs iguais aos da home -->
+        <div class="grid grid-cols-1 md-grid-cols-4 md:grid-cols-4 gap-6 mb-8">
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+            <div class="bg-blue-100 p-3 rounded-lg"><span class="text-2xl">👥</span></div>
+            <div class="ml-4">
+              <p class="text-sm text-gray-600">Total colaboradores</p>
+              <p id="totalEmployeesPage" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+            <div class="bg-green-100 p-3 rounded-lg"><span class="text-2xl">📊</span></div>
+            <div class="ml-4">
+              <p class="text-sm text-gray-600">Departamentos</p>
+              <p id="totalDepartments" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+            <div class="bg-yellow-100 p-3 rounded-lg"><span class="text-2xl">🧾</span></div>
+            <div class="ml-4">
+              <p class="text-sm text-gray-600">Novos hoje</p>
+              <p id="todayRegistrations" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ações + Form -->
+        <div class="mb-6">
+          <button type="button" class="px-3 py-2 bg-[#16263E] text-white rounded-lg shadow" onclick="showAddEmployeeForm()">➕ Adicionar colaborador</button>
+          <div id="addEmployeeFormSection" class="hidden mt-4 bg-white border rounded-xl p-4">
+            <form id="addEmployeeFormPage" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium">Nome</label>
+                <input id="employeeNamePage" type="text" class="w-full border rounded-lg px-3 py-2" required />
+              </div>
+              <div>
+                <label class="block text-sm font-medium">E-mail</label>
+                <input id="employeeEmailPage" type="email" class="w-full border rounded-lg px-3 py-2" required />
+              </div>
+              <div>
+                <label class="block text-sm font-medium">Departamento</label>
+                <select id="employeeDepartmentPage" class="w-full border rounded-lg px-3 py-2">
+                  <option value="Comercial">Comercial</option>
+                  <option value="Tecnologia">Tecnologia</option>
+                  <option value="Backoffice">Backoffice</option>
+                  <option value="Administrativo">Administrativo</option>
+                  <option value="Jurídico">Jurídico</option>
+                  <option value="Pós-leilão">Pós-leilão</option>
+                  <option value="Averbações e Avaliações">Averbações e Avaliações</option>
+
+                </select>
+          
+              </div>
+              <div>
+                <label class="block text-sm font-medium">Foto</label>
+                <input id="employeePhotoPage" type="file" accept="image/*" class="w-full" />
+                <div id="photoPreviewPage" class="mt-2 w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-2xl text-gray-400">📷</div>
+              </div>
+              <div class="md:col-span-2 flex justify-end gap-2">
+                <button type="button" class="px-3 py-2 border rounded-lg" onclick="hideAddEmployeeForm()">Cancelar</button>
+                <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Lista -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+              <tr>
+                <th class="text-left py-3 px-4">Colaborador</th>
+                <th class="text-left py-3 px-4">E-mail</th>
+                <th class="text-left py-3 px-4">Departamento</th>
+                <th class="text-left py-3 px-4">Criado em</th>
+                <th class="text-center py-3 px-4">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="employeesListTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar -->
+  <div id="editEmployeeModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <h3 class="text-lg font-semibold mb-4">✏️ Editar colaborador</h3>
+      <form id="editEmployeeForm" class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium">Nome</label>
+          <input id="editEmployeeName" type="text" class="w-full border rounded-lg px-3 py-2" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium">E-mail</label>
+          <input id="editEmployeeEmail" type="email" class="w-full border rounded-lg px-3 py-2" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Departamento</label>
+          <select id="editEmployeeDepartment" class="w-full border rounded-lg px-3 py-2">
+            <option value="Comercial">Comercial</option>
+            <option value="Tecnologia">Tecnologia</option>
+            <option value="Backoffice">Backoffice</option>
+            <option value="custom">Outro (digitar)</option>
+          </select>
+          <input id="customDepartmentEdit" class="hidden mt-2 w-full border rounded-lg px-3 py-2" placeholder="Novo departamento" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Foto</label>
+          <input id="employeePhotoEdit" type="file" accept="image/*" />
+          <div id="photoPreviewEdit" class="mt-2 w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-2xl text-gray-400">📷</div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeEditEmployeeModal()">Cancelar</button>
+          <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Excluir -->
+  <div id="deleteConfirmModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <h3 class="text-lg font-semibold mb-3">🗑️ Excluir colaborador</h3>
+      <div id="deleteEmployeeInfo" class="mb-4"></div>
+      <div class="flex justify-end gap-2">
+        <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeDeleteConfirmModal()">Cancelar</button>
+        <button type="button" class="px-3 py-2 bg-red-600 text-white rounded-lg" onclick="executeConfirmedDeletion()">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./script.js" defer></script>
+</body>
+</html>
