@@ -1,0 +1,160 @@
+/* === CONFIGURAÇÕES GERAIS === */
+body {
+  box-sizing: border-box;
+}
+
+/* Gradiente principal do cabeçalho */
+.monday-gradient {
+  background: linear-gradient(135deg, #16263E 0%, #7FC02B 100%);
+}
+
+/* === ESTILO DAS BADGES DE STATUS === */
+.status-badge {
+  transition: all 0.2s ease;
+}
+
+.status-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* === LINHAS DE TABELA === */
+.table-row {
+  transition: all 0.2s ease;
+}
+
+.table-row:hover {
+  background-color: #f8fafc;
+  transform: translateX(2px);
+}
+
+/* === BOTÃO "ADICIONAR" === */
+.add-button {
+  background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+  transition: all 0.3s ease;
+}
+
+.add-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 184, 148, 0.3);
+}
+
+/* === MODAL === */
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+}
+
+/* === ANIMAÇÃO DE ENTRADA === */
+.slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* === BOTÕES DE AÇÃO (EDITAR / EXCLUIR) === */
+.action-button {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+  margin: 0 4px;
+}
+
+.edit-button {
+  background-color: #16263E;
+  color: white;
+}
+
+.edit-button:hover {
+  background-color: #16263E;
+  transform: translateY(-1px);
+}
+
+.delete-button {
+  background-color: #ef4444;
+  color: white;
+}
+
+.delete-button:hover {
+  background-color: #dc2626;
+  transform: translateY(-1px);
+}
+
+
+#employeesPage .grid.grid-cols-1.sm\:grid-cols-3.gap-4.mb-6 {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 1.5rem !important;
+  align-items: stretch !important;
+  justify-items: stretch !important;
+}
+
+/* 2) cada card ocupa 100% da coluna, mesma altura e conteúdo centralizado */
+#employeesPage .grid.grid-cols-1.sm\:grid-cols-3.gap-4.mb-6 > div {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 112px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  text-align: center !important;
+  padding: 1.5rem !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 4px 12px rgba(17, 24, 39, 0.06) !important;
+  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
+}
+
+/* 3) deixa título e número sempre no mesmo "grid interno" */
+#employeesPage .grid.grid-cols-1.sm\:grid-cols-3.gap-4.mb-6 > div .text-sm {
+  display: block !important;
+  margin-bottom: 0.25rem !important;
+  color: #6b7280 !important;
+}
+
+#employeesPage .grid.grid-cols-1.sm\:grid-cols-3.gap-4.mb-6 > div .text-2xl {
+  display: block !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+  color: #111827 !important;
+}
+
+/* 4) remove o quarto card (ícone de calendário) caso ainda exista */
+#employeesPage .grid.grid-cols-1.sm\:grid-cols-3.gap-4.mb-6 > div:nth-child(n+4) {
+  display: none !important;
+}
+
+/* Neutraliza versões antigas da .stat-card */
+#employeesPage .stat-card {
+  max-width: none !important;
+  width: 100% !important;
+}
+
+/* === AJUSTES VISUAIS DO CABEÇALHO DE COLABORADORES === */
+#employeesPage h2::after {
+  content: none !important;
+}
+
+#employeesPage h2 + p {
+  display: none !important;
+}
+
+/* Reduz margem inferior do cabeçalho */
+#employeesPage .max-w-5xl.mx-auto.p-6 > .flex.items-center.justify-between.mb-6 {
+  margin-bottom: 1rem !important;
+  padding-bottom: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
