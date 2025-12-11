@@ -115,10 +115,7 @@ async function syncFromDB() {
     updateAllInterfaces();
   } catch (e) {
     console.error("❌ Erro ao sincronizar com a Supabase:", e);
-    showInfoModal(
-      "Erro de conexão",
-      '<div class="text-center text-red-600">Falha ao carregar dados do banco. Verifique as colunas da tabela <b>funcionarios</b> e <b>folgas</b>.</div>'
-    );
+    // Mantemos só o log no console para debug, sem travar a UI com modal.
   }
 }
 
@@ -167,10 +164,12 @@ async function dbUpsertLeave(employeeId, fridayBR, status="Pendente", notes="Agu
 
   const { error } = await sb
     .from("folgas")
-    .upsert(
-      { employee_id: employeeId, friday_date: fridayISO, status, notes },
-      { onConflict: "employee_id,friday_date" } // precisa de UNIQUE no banco
-    );
+    .upsert({
+      employee_id: employeeId,
+      friday_date: fridayISO,
+      status,
+      notes
+    }); // sem onConflict explícito
 
   if (error) throw error;
   await syncFromDB();
@@ -271,7 +270,6 @@ function renderEmployees() {
   employees.forEach(empRow => {
     const glob = employeesDB.find(e => e.id === empRow.globalId);
 
-    // ⬇️ Trocar "name" se coluna for outra
     const displayName = empRow.name || glob?.name || "";
 
     const photoDisplay = (glob?.photo_url)
@@ -438,7 +436,6 @@ function openEditEmployeeModal(id) {
 
   editingEmployeeId = id;
 
-  // ⬇️ Trocar "name" se coluna for outra
   document.getElementById("editEmployeeName").value  = emp.name || "";
   document.getElementById("editEmployeeEmail").value = emp.email || "";
   document.getElementById("editEmployeeDepartment").value = emp.department || "Comercial";
@@ -764,7 +761,7 @@ function renderFridaysGrid(){
     const employeeCount = list.length;
     const onLeaveCount   = list.filter(e => e.status === "Folga").length;
     const card = document.createElement("div");
-    card.className = `friday-card bg-white border-2 rounded-xl p-4 cursor-pointer hover:shadow-lg transition-all duration-200 ${selectedFriday === key ? "border-purple-500 bg-purple-50 selected" : "border-gray-200 hover:border-purple-300"}`;
+    card.className = `friday-card bg-white border-2 rounded-xl p-4 cursor-pointer hover:shadow-lg transition-all duração-200 ${selectedFriday === key ? "border-purple-500 bg-purple-50 selected" : "border-gray-200 hover:border-purple-300"}`;
     card.onclick = () => selectFriday(key);
     card.innerHTML = `
       <div class="text-center">
@@ -810,7 +807,7 @@ function renderEmployeesList(){
   }
 
   employeesDB.forEach(emp => {
-    const displayName = emp.name || ""; // trocar se coluna tiver outro nome
+    const displayName = emp.name || "";
     const photo = emp.photo_url
       ? `<img src="${emp.photo_url}" class="w-10 h-10 object-cover rounded-full">`
       : `<div class="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-semibold">${displayName.charAt(0)}</div>`;
@@ -852,7 +849,6 @@ function populateEmployeeSelect(){
   const select = document.getElementById("leaveEmployeeSelect"); if (!select) return;
   select.innerHTML = '<option value="">Selecione o colaborador</option>';
 
-  // ordena por nome (trocar "name" se for outro campo)
   const sorted = [...employeesDB].sort((a, b) =>
     (a.name || "").localeCompare((b.name || ""), "pt-BR")
   );
@@ -902,4 +898,3 @@ Object.assign(window, {
   executeConfirmedDeletion,
   closeDeleteConfirmModal
 });
-
