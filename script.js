@@ -1,24 +1,19 @@
 /* =========================================================
    GESTÃO DE FOLGAS — script.js (Supabase Edition)
-   Tabelas: funcionarios, folgas
-   Colunas esperadas:
-
-   funcionarios:
-     id (bigint, PK)
-     name text      
-     email text
-     department text
-     photo_url text
-     created_at timestamptz default now()
-
-   folgas:
-     id (bigint, PK)
-     employee_id bigint (FK -> funcionarios.id)
-     friday_date date
-     status text
-     notes text
-     created_at timestamptz default now()
    ========================================================= */
+
+// Importa o client direto aqui (script é módulo)
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+// Config do teu projeto Supabase
+const SUPABASE_URL = "https://omyojnkydyuxnqaigrzy.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9teW9qbmt5ZHl1eG5xYWlncnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4NDYyODEsImV4cCI6MjA3NTQyMjI4MX0.HdkeorXyOuJI_uy1HrEYH0WOKJn3FPzv-7rTq_J6VzQ";
+
+// Cria o client e deixa disponível global
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+window.supabase = sb;
+
+console.log("✅ Supabase conectado no script.js!");
 
 // ===== Variáveis globais de UI/fluxo =====
 const PASSWORD = "03082020";
@@ -32,13 +27,6 @@ let pendingRemoveFromFridayId = null;
 // Estado em memória (sincronizado com DB)
 let fridayData = {};     // { 'DD/MM/YYYY': [ {id,globalId,name,department,status,notes} ] }
 let employeesDB = [];    // [{ id, name, email, department, photo_url, created_at }]
-
-// ===================== SUPABASE =========================
-const sb = window.supabase; // criado no HTML
-
-if (!sb) {
-  console.error("❌ Supabase client não encontrado em window.supabase.");
-}
 
 // Lista fixa de departamentos (edite aqui quando precisar)
 const DEPARTMENTS = [
@@ -67,8 +55,6 @@ function toISODate(d){
 // --------- Sync geral (puxa funcionarios + folgas do mês) ----------
 async function syncFromDB() {
   try {
-    if (!sb) throw new Error("Supabase client não inicializado.");
-
     // 1) Funcionários
     const { data: emps, error: empErr } = await sb
       .from("funcionarios")
@@ -115,7 +101,6 @@ async function syncFromDB() {
     updateAllInterfaces();
   } catch (e) {
     console.error("❌ Erro ao sincronizar com a Supabase:", e);
-    // Mantemos só o log no console para debug, sem travar a UI com modal.
   }
 }
 
@@ -169,7 +154,7 @@ async function dbUpsertLeave(employeeId, fridayBR, status="Pendente", notes="Agu
       friday_date: fridayISO,
       status,
       notes
-    }); // sem onConflict explícito
+    });
 
   if (error) throw error;
   await syncFromDB();
@@ -269,7 +254,6 @@ function renderEmployees() {
 
   employees.forEach(empRow => {
     const glob = employeesDB.find(e => e.id === empRow.globalId);
-
     const displayName = empRow.name || glob?.name || "";
 
     const photoDisplay = (glob?.photo_url)
@@ -345,7 +329,7 @@ function approveLeave(leaveId) {
 async function processApproval() {
   if (!window.pendingApprovalId) return;
   await dbSetLeaveStatus(window.pendingApprovalId, "Folga", "Folga aprovada pela gestão");
-  showInfoModal("✅ Aprovação", '<div class="text-center text-green-600">Folga aprovada!</div>');
+  showInfoModal("✅ Aprovação", '<div class="text-center text-green-600">Folga aprovado!</div>');
   window.pendingApprovalId = null;
 }
 
@@ -761,7 +745,7 @@ function renderFridaysGrid(){
     const employeeCount = list.length;
     const onLeaveCount   = list.filter(e => e.status === "Folga").length;
     const card = document.createElement("div");
-    card.className = `friday-card bg-white border-2 rounded-xl p-4 cursor-pointer hover:shadow-lg transition-all duração-200 ${selectedFriday === key ? "border-purple-500 bg-purple-50 selected" : "border-gray-200 hover:border-purple-300"}`;
+    card.className = `friday-card bg-white border-2 rounded-xl p-4 cursor-pointer hover:shadow-lg transition-all duration-200 ${selectedFriday === key ? "border-purple-500 bg-purple-50 selected" : "border-gray-200 hover:border-purple-300"}`;
     card.onclick = () => selectFriday(key);
     card.innerHTML = `
       <div class="text-center">
