@@ -5,7 +5,7 @@
 
    funcionarios:
      id (bigint, PK)
-     name text           // <-- se no seu banco for "nome", troque nos pontos marcados
+     name text      
      email text
      department text
      photo_url text
@@ -73,7 +73,6 @@ async function syncFromDB() {
     const { data: emps, error: empErr } = await sb
       .from("funcionarios")
       .select("*")
-      // 🔴 SE a coluna de nome NÃO for "name", troque abaixo por "nome" ou o que for:
       .order("name", { ascending: true });
 
     if (empErr) throw empErr;
@@ -106,7 +105,6 @@ async function syncFromDB() {
       fridayData[key].push({
         id: l.id,                 // id da folga
         globalId: l.employee_id,  // id do funcionário
-        // ⬇️ Trocar "name" se sua coluna tiver outro nome
         name: emp?.name || "",
         department: emp?.department || "",
         status: l.status,
@@ -904,3 +902,4 @@ Object.assign(window, {
   executeConfirmedDeletion,
   closeDeleteConfirmModal
 });
+
