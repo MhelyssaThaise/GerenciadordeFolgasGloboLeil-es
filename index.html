@@ -31,12 +31,12 @@
               class="bg-yellow-500 bg-opacity-90 hover:bg-opacity-100 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
               ⏳ Pendências (<span id="headerPendingCount">0</span>)
             </button>
-            <button onclick="showAllLeaves()
-              " class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+            <button onclick="showAllLeaves()"
+              class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
               📊 Ver Todas as Folgas
             </button>
             <button onclick="showPasswordModal()"
-              class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duração-200">
+              class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
               👥 Colaboradores
             </button>
           </div>
@@ -162,17 +162,6 @@
     </div>
   </main>
 
-  <script type="module">
-  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-
-  const SUPABASE_URL = "https://omyojnkydyuxnqaigrzy.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9teW9qbmt5ZHl1eG5xYWlncnp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk4NDYyODEsImV4cCI6MjA3NTQyMjI4MX0.HdkeorXyOuJI_uy1HrEYH0WOKJn3FPzv-7rTq_J6VzQ";
-
-  window.supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-  console.log("Supabase Conectado!");
-  
-</script>
-
   <!-- Modais -->
   <div id="infoModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
     <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-5">
@@ -282,10 +271,8 @@
                   <option value="Jurídico">Jurídico</option>
                   <option value="Pós-leilão">Pós-leilão</option>
                   <option value="Averbações e Avaliações">Averbações e Avaliações</option>
-                  <option value="Marketing">Marketing</option>option>
-
+                  <option value="Marketing">Marketing</option>
                 </select>
-          
               </div>
               <div>
                 <label class="block text-sm font-medium">Foto</label>
@@ -367,7 +354,7 @@
     </div>
   </div>
 
-  <script src="./script.js" defer></script>
+  <!-- Script principal em modo módulo -->
+  <script type="module" src="./script.js"></script>
 </body>
 </html>
-
