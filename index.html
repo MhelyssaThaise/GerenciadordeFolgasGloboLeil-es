@@ -1,781 +1,419 @@
-(() => {
-  // ---------- Estado ----------
-  let selectedYear = new Date().getFullYear();
-  let selectedMonthIndex = new Date().getMonth(); // 0-11
-  let selectedFridayISO = null; // "YYYY-MM-DD"
-  let selectedFridayLabel = null;
-
-  let employeesCache = [];
-  let leavesForSelectedFriday = [];
-
-  // ---------- Elementos ----------
-  const el = (id) => document.getElementById(id);
-
-  // ---------- Utils ----------
-  const pad2 = (n) => String(n).padStart(2, "0");
-
-  function toISODateLocal(d) {
-    // YYYY-MM-DD sem UTC (evita bug de fuso)
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-  }
-
-  function formatBR(iso) {
-    // iso: YYYY-MM-DD
-    const [y, m, d] = iso.split("-");
-    return `${d}/${m}/${y}`;
-  }
-
-  function setText(id, text) {
-    const node = el(id);
-    if (node) node.textContent = String(text);
-  }
-
-  function showNode(id) {
-    const node = el(id);
-    if (!node) return;
-    node.classList.remove("hidden");
-    node.style.display = ""; // caso tenha inline display:none
-  }
-
-  function hideNode(id) {
-    const node = el(id);
-    if (!node) return;
-    node.classList.add("hidden");
-    node.style.display = "none"; // garante oculto
-  }
-
-  function openInfo(title, html) {
-    setText("infoModalTitle", title);
-    const content = el("infoModalContent");
-    if (content) content.innerHTML = html;
-    showNode("infoModal");
-  }
-
-  // ---------- Placeholders (não deixar branco) ----------
-  function setEmployeeTablePlaceholder(message) {
-    const tbody = el("employeeTableBody");
-    if (!tbody) return;
-    tbody.innerHTML = `
-      <tr>
-        <td class="py-6 px-6 text-gray-500" colspan="5">
-          ${message}
-        </td>
-      </tr>
-    `;
-  }
-
-  function setTableTitle(text) {
-    const t = el("tableTitle");
-    if (t) t.textContent = text;
-  }
-
-  // ---------- Supabase (UMD já colocou window.supabase) ----------
-  function sb() {
-    if (!window.supabase) {
-      throw new Error("Supabase não encontrado. Verifique o script UMD e createClient no HTML.");
-    }
-    return window.supabase;
-  }
-
-  async function fetchEmployees() {
-    const { data, error } = await sb()
-      .from("employees")
-      .select("*")
-      .order("name", { ascending: true });
-
-    if (error) throw error;
-    return data ?? [];
-  }
-
-  async function fetchLeavesByDate(dateISO) {
-    const { data, error } = await sb()
-      .from("leaves")
-      .select("*")
-      .eq("date", dateISO);
-
-    if (error) throw error;
-    return data ?? [];
-  }
-
-  async function fetchPendingLeavesCount() {
-    // Se você não usa status, isso retorna 0 sem quebrar
-    const { count, error } = await sb()
-      .from("leaves")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending");
-
-    if (error) {
-      // Se não existir coluna status, não derruba o app
-      console.warn("fetchPendingLeavesCount:", error.message);
-      return 0;
-    }
-    return count ?? 0;
-  }
-
-  // ---------- Sextas do mês ----------
-  function getFridaysOfMonth(year, monthIndex) {
-    const list = [];
-    const d = new Date(year, monthIndex, 1);
-
-    while (d.getMonth() === monthIndex) {
-      if (d.getDay() === 5) list.push(new Date(d)); // 5 = sexta
-      d.setDate(d.getDate() + 1);
-    }
-    return list;
-  }
-
-  function renderFridaysGrid() {
-    const grid = el("fridaysGrid");
-    if (!grid) return;
-
-    const fridays = getFridaysOfMonth(selectedYear, selectedMonthIndex);
-    grid.innerHTML = "";
-
-    if (fridays.length === 0) {
-      grid.innerHTML = `<div class="col-span-full text-gray-500">Nenhuma sexta encontrada.</div>`;
-      return;
-    }
-
-    fridays.forEach((dateObj) => {
-      const iso = toISODateLocal(dateObj);
-      const label = `${pad2(dateObj.getDate())}/${pad2(dateObj.getMonth() + 1)}/${dateObj.getFullYear()}`;
-
-      const isSelected = selectedFridayISO === iso;
-
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className =
-        "border rounded-xl p-4 text-left transition-all " +
-        (isSelected
-          ? "border-purple-600 ring-2 ring-purple-200 bg-purple-50"
-          : "border-gray-200 hover:border-purple-300 hover:bg-gray-50");
-
-      // Mostra um preview "X colaboradores" (sempre com base no cache)
-      // OBS: isso NÃO filtra, é só um preview.
-      const previewCount = employeesCache.length;
-
-      btn.innerHTML = `
-        <div class="text-sm text-gray-500">Sexta-feira</div>
-        <div class="text-lg font-semibold text-gray-900">${label}</div>
-        <div class="mt-2 text-xs text-gray-500">👥 ${previewCount} colaboradores</div>
-      `;
-
-      btn.addEventListener("click", async () => {
-        selectedFridayISO = iso;
-        selectedFridayLabel = label;
-
-        setTableTitle(`Colaboradores — ${label}`);
-        renderFridaysGrid(); // destaca selecionado
-
-        await loadEmployeesForSelectedFriday();
-      });
-
-      grid.appendChild(btn);
-    });
-  }
-
-  // ---------- Render Tabela ----------
-  function renderEmployeeTable(employees, leaves) {
-    const tbody = el("employeeTableBody");
-    if (!tbody) return;
-
-    if (!employees || employees.length === 0) {
-      setEmployeeTablePlaceholder("Nenhum colaborador cadastrado.");
-      return;
-    }
-
-    const leaveByEmployeeId = new Map();
-    (leaves || []).forEach((l) => leaveByEmployeeId.set(l.employee_id, l));
-
-    tbody.innerHTML = "";
-
-    employees.forEach((emp) => {
-      const leave = leaveByEmployeeId.get(emp.id);
-
-      const status = leave ? (leave.status || "De folga") : "Trabalhando";
-      const isLeave = !!leave && (leave.status !== "pending");
-      const isPending = !!leave && (leave.status === "pending");
-
-      const badgeClass = isPending
-        ? "bg-yellow-100 text-yellow-700"
-        : isLeave
-          ? "bg-green-100 text-green-700"
-          : "bg-orange-100 text-orange-700";
-
-      const obs = leave?.notes ?? "-";
-
-      const tr = document.createElement("tr");
-      tr.className = "border-b border-gray-100 hover:bg-gray-50";
-
-      tr.innerHTML = `
-        <td class="py-4 px-6">
-          <div class="font-medium text-gray-900">${emp.name ?? "Sem nome"}</div>
-          <div class="text-xs text-gray-500">${emp.email ?? ""}</div>
-        </td>
-        <td class="py-4 px-6 text-gray-700">${emp.department ?? "-"}</td>
-        <td class="py-4 px-6">
-          <span class="px-3 py-1 rounded-full text-sm ${badgeClass}">
-            ${isPending ? "Pendente" : (leave ? "De folga" : "Trabalhando")}
-          </span>
-        </td>
-        <td class="py-4 px-6 text-gray-700">${obs}</td>
-        <td class="py-4 px-6 text-center">
-          <button class="px-3 py-2 rounded-lg border hover:bg-gray-100" type="button"
-            data-emp-id="${emp.id}">
-            ${leave ? "Ver" : "Marcar"}
-          </button>
-        </td>
-      `;
-
-      // Ação rápida: marcar folga do dia selecionado
-      tr.querySelector("button")?.addEventListener("click", () => {
-        if (!selectedFridayISO) {
-          openInfo("Selecione uma sexta", "Selecione uma sexta-feira antes de registrar uma folga.");
-          return;
-        }
-        openRegisterLeaveModal(emp.id);
-      });
-
-      tbody.appendChild(tr);
-    });
-  }
-
-  // ---------- KPIs ----------
-  function updateStats(employees, leaves) {
-    setText("totalEmployees", employees.length);
-
-    const leavesMap = new Map();
-    (leaves || []).forEach((l) => leavesMap.set(l.employee_id, l));
-
-    let onLeave = 0;
-    let pending = 0;
-
-    employees.forEach((e) => {
-      const l = leavesMap.get(e.id);
-      if (!l) return;
-      if (l.status === "pending") pending += 1;
-      else onLeave += 1;
-    });
-
-    const working = Math.max(0, employees.length - onLeave - pending);
-
-    setText("onLeave", onLeave);
-    setText("working", working);
-    setText("pendingRequests", pending);
-  }
-
-  // ---------- Select do Modal Registrar ----------
-  function populateLeaveEmployeeSelect(employees, preselectId = null) {
-    const select = el("leaveEmployeeSelect");
-    if (!select) return;
-
-    select.innerHTML = `<option value="">Selecione...</option>`;
-
-    employees.forEach((emp) => {
-      const opt = document.createElement("option");
-      opt.value = String(emp.id);
-      opt.textContent = emp.name ?? "(Sem nome)";
-      select.appendChild(opt);
-    });
-
-    if (preselectId) select.value = String(preselectId);
-  }
-
-  // ---------- Load principal ao selecionar sexta ----------
-  async function loadEmployeesForSelectedFriday() {
-    // Nunca deixar em branco
-    if (!selectedFridayISO) {
-      setEmployeeTablePlaceholder("Selecione uma sexta-feira para visualizar os colaboradores.");
-      updateStats(employeesCache, []);
-      return;
-    }
-
-    setEmployeeTablePlaceholder("Carregando...");
-
-    try {
-      // Employees SEMPRE do cache
-      const leaves = await fetchLeavesByDate(selectedFridayISO);
-      leavesForSelectedFriday = leaves;
-
-      renderEmployeeTable(employeesCache, leavesForSelectedFriday);
-      updateStats(employeesCache, leavesForSelectedFriday);
-
-      // Atualiza pendências do header
-      const pendingCount = await fetchPendingLeavesCount();
-      setText("headerPendingCount", pendingCount);
-    } catch (e) {
-      console.error(e);
-      setEmployeeTablePlaceholder("Erro ao carregar dados. Veja o console (F12) para detalhes.");
-    }
-  }
-
-  // ---------- Init Ano/Mês ----------
-  function initYearMonthSelectors() {
-    const yearSelect = el("yearSelect");
-    const monthSelect = el("monthSelect");
-    if (!yearSelect || !monthSelect) return;
-
-    // anos: atual -2 até atual +3
-    const nowY = new Date().getFullYear();
-    yearSelect.innerHTML = "";
-    for (let y = nowY - 2; y <= nowY + 3; y++) {
-      const opt = document.createElement("option");
-      opt.value = String(y);
-      opt.textContent = String(y);
-      if (y === selectedYear) opt.selected = true;
-      yearSelect.appendChild(opt);
-    }
-
-    const months = [
-      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-    ];
-
-    monthSelect.innerHTML = "";
-    months.forEach((name, idx) => {
-      const opt = document.createElement("option");
-      opt.value = String(idx); // 0-11 (CORRETO)
-      opt.textContent = name;
-      if (idx === selectedMonthIndex) opt.selected = true;
-      monthSelect.appendChild(opt);
-    });
-
-    yearSelect.addEventListener("change", async () => {
-      selectedYear = Number(yearSelect.value);
-
-      // reseta seleção
-      selectedFridayISO = null;
-      selectedFridayLabel = null;
-      setTableTitle("Colaboradores - Selecione uma sexta-feira");
-      setEmployeeTablePlaceholder("Selecione uma sexta-feira para visualizar os colaboradores.");
-      updateStats(employeesCache, []);
-
-      renderFridaysGrid();
-    });
-
-    monthSelect.addEventListener("change", async () => {
-      // value é 0-11 (CORRETO)
-      selectedMonthIndex = Number(monthSelect.value);
-
-      // reseta seleção
-      selectedFridayISO = null;
-      selectedFridayLabel = null;
-      setTableTitle("Colaboradores - Selecione uma sexta-feira");
-      setEmployeeTablePlaceholder("Selecione uma sexta-feira para visualizar os colaboradores.");
-      updateStats(employeesCache, []);
-
-      renderFridaysGrid();
-    });
-  }
-
-  // ---------- Modais ----------
-  window.closeInfoModal = () => hideNode("infoModal");
-
-  window.showPasswordModal = () => {
-    // aqui você pode validar senha se quiser
-    const modal = el("passwordModal");
-    if (!modal) return;
-    modal.classList.remove("hidden");
-    modal.style.display = "flex";
-  };
-
-  window.closePasswordModal = () => {
-    const modal = el("passwordModal");
-    if (!modal) return;
-    modal.classList.add("hidden");
-    modal.style.display = "none";
-    const err = el("passwordError");
-    if (err) err.classList.add("hidden");
-    const inp = el("passwordInput");
-    if (inp) inp.value = "";
-  };
-
-  function wirePasswordForm() {
-    const form = el("passwordForm");
-    if (!form) return;
-
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const pwd = el("passwordInput")?.value ?? "";
-      // senha simples (troque como preferir)
-      const ok = pwd === "admin123";
-
-      if (!ok) {
-        el("passwordError")?.classList.remove("hidden");
-        return;
-      }
-      el("passwordError")?.classList.add("hidden");
-      window.closePasswordModal();
-      window.openEmployeesPage();
-    });
-  }
-
-  window.openRegisterLeaveModal = (preselectEmployeeId = null) => {
-    if (!selectedFridayISO) {
-      openInfo("Selecione uma sexta", "Selecione uma sexta-feira antes de registrar uma folga.");
-      return;
-    }
-    populateLeaveEmployeeSelect(employeesCache, preselectEmployeeId);
-
-    const modal = el("registerLeaveModal");
-    if (!modal) return;
-    modal.classList.remove("hidden");
-    modal.style.display = "flex";
-  };
-
-  window.closeRegisterLeaveModal = () => {
-    const modal = el("registerLeaveModal");
-    if (!modal) return;
-    modal.classList.add("hidden");
-    modal.style.display = "none";
-    const sel = el("leaveEmployeeSelect");
-    if (sel) sel.value = "";
-  };
-
-  function wireRegisterLeaveForm() {
-    const form = el("registerLeaveForm");
-    if (!form) return;
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      if (!selectedFridayISO) {
-        openInfo("Selecione uma sexta", "Selecione uma sexta-feira antes de registrar uma folga.");
-        return;
-      }
-
-      const empId = el("leaveEmployeeSelect")?.value;
-      if (!empId) {
-        openInfo("Faltou selecionar", "Selecione um colaborador para registrar a folga.");
-        return;
-      }
-
-      const notes = prompt("Observações (opcional):") || null;
-
-      try {
-        // Evita duplicar a mesma folga (mesmo employee_id + date)
-        // Se você tiver unique constraint, melhor ainda.
-        const { data: existing, error: exErr } = await sb()
-          .from("leaves")
-          .select("id")
-          .eq("employee_id", empId)
-          .eq("date", selectedFridayISO)
-          .limit(1);
-
-        if (exErr) throw exErr;
-
-        if (existing && existing.length > 0) {
-          openInfo("Já existe", `Esse colaborador já tem registro de folga em ${formatBR(selectedFridayISO)}.`);
-          window.closeRegisterLeaveModal();
-          return;
-        }
-
-        const { error } = await sb()
-          .from("leaves")
-          .insert([{
-            employee_id: empId,
-            date: selectedFridayISO,
-            status: "approved",
-            notes
-          }]);
-
-        if (error) throw error;
-
-        window.closeRegisterLeaveModal();
-        openInfo("Folga registrada", `Folga registrada em <b>${formatBR(selectedFridayISO)}</b>.`);
-
-        // Recarrega status do dia selecionado
-        await loadEmployeesForSelectedFriday();
-      } catch (err) {
-        console.error(err);
-        openInfo("Erro", `Não foi possível registrar. Veja o console (F12).<br/><br/>${err.message ?? err}`);
-      }
-    });
-  }
-
-  // ---------- Página Colaboradores ----------
-  window.openEmployeesPage = async () => {
-    showNode("employeesPage");
-    await refreshEmployeesPage();
-  };
-
-  window.closeEmployeesPage = () => {
-    hideNode("employeesPage");
-  };
-
-  window.showAddEmployeeForm = () => showNode("addEmployeeFormSection");
-  window.hideAddEmployeeForm = () => hideNode("addEmployeeFormSection");
-
-  async function refreshEmployeesPage() {
-    // KPIs da página de colaboradores
-    setText("totalEmployeesPage", employeesCache.length);
-
-    const departments = new Set(
-      employeesCache.map(e => (e.department ?? "").trim()).filter(Boolean)
-    );
-    setText("totalDepartments", departments.size);
-    setText("todayRegistrations", 0); // (se quiser, dá pra calcular com created_at)
-
-    renderEmployeesListTable();
-  }
-
-  function renderEmployeesListTable() {
-    const tbody = el("employeesListTable");
-    if (!tbody) return;
-
-    if (!employeesCache.length) {
-      tbody.innerHTML = `
-        <tr><td colspan="5" class="py-6 px-4 text-gray-500">Nenhum colaborador cadastrado.</td></tr>
-      `;
-      return;
-    }
-
-    tbody.innerHTML = "";
-
-    employeesCache.forEach(emp => {
-      const tr = document.createElement("tr");
-      tr.className = "border-b hover:bg-gray-50";
-
-      const createdAt = emp.created_at ? new Date(emp.created_at).toLocaleDateString("pt-BR") : "-";
-
-      tr.innerHTML = `
-        <td class="py-3 px-4 font-medium">${emp.name ?? "-"}</td>
-        <td class="py-3 px-4">${emp.email ?? "-"}</td>
-        <td class="py-3 px-4">${emp.department ?? "-"}</td>
-        <td class="py-3 px-4 text-sm text-gray-600">${createdAt}</td>
-        <td class="py-3 px-4 text-center">
-          <button class="px-3 py-1 border rounded-lg hover:bg-gray-100" data-edit="${emp.id}">Editar</button>
-          <button class="px-3 py-1 border rounded-lg hover:bg-gray-100" data-del="${emp.id}">Excluir</button>
-        </td>
-      `;
-
-      tr.querySelector(`[data-edit="${emp.id}"]`)?.addEventListener("click", () => openEditEmployee(emp.id));
-      tr.querySelector(`[data-del="${emp.id}"]`)?.addEventListener("click", () => openDeleteEmployee(emp.id));
-
-      tbody.appendChild(tr);
-    });
-  }
-
-  // ---------- Adicionar colaborador ----------
-  function wireAddEmployeeForm() {
-    const form = el("addEmployeeFormPage");
-    if (!form) return;
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-
-      const name = el("employeeNamePage")?.value?.trim();
-      const email = el("employeeEmailPage")?.value?.trim();
-      const department = el("employeeDepartmentPage")?.value?.trim() || null;
-
-      if (!name || !email) {
-        openInfo("Campos obrigatórios", "Nome e e-mail são obrigatórios.");
-        return;
-      }
-
-      try {
-        const { error } = await sb().from("employees").insert([{ name, email, department }]);
-        if (error) throw error;
-
-        // limpa
-        el("employeeNamePage").value = "";
-        el("employeeEmailPage").value = "";
-        // recarrega cache
-        employeesCache = await fetchEmployees();
-
-        await refreshEmployeesPage();
-        renderFridaysGrid(); // atualiza preview
-        populateLeaveEmployeeSelect(employeesCache); // modal
-        openInfo("Salvo", "Colaborador cadastrado com sucesso.");
-      } catch (err) {
-        console.error(err);
-        openInfo("Erro", `Não foi possível salvar. Veja o console (F12).<br/><br/>${err.message ?? err}`);
-      }
-    });
-  }
-
-  // ---------- Editar/Excluir ----------
-  let editingEmployeeId = null;
-  let deletingEmployeeId = null;
-
-  function openEditEmployee(empId) {
-    const emp = employeesCache.find(e => String(e.id) === String(empId));
-    if (!emp) return;
-
-    editingEmployeeId = empId;
-
-    el("editEmployeeName").value = emp.name ?? "";
-    el("editEmployeeEmail").value = emp.email ?? "";
-    el("editEmployeeDepartment").value = emp.department ?? "Comercial";
-
-    // custom dept
-    const customInput = el("customDepartmentEdit");
-    if (customInput) customInput.classList.add("hidden");
-
-    showNode("editEmployeeModal");
-  }
-
-  window.closeEditEmployeeModal = () => {
-    editingEmployeeId = null;
-    hideNode("editEmployeeModal");
-  };
-
-  function wireEditEmployeeForm() {
-    const sel = el("editEmployeeDepartment");
-    const custom = el("customDepartmentEdit");
-
-    sel?.addEventListener("change", () => {
-      if (sel.value === "custom") {
-        custom?.classList.remove("hidden");
-        custom?.focus();
-      } else {
-        custom?.classList.add("hidden");
-      }
-    });
-
-    const form = el("editEmployeeForm");
-    if (!form) return;
-
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!editingEmployeeId) return;
-
-      const name = el("editEmployeeName")?.value?.trim();
-      const email = el("editEmployeeEmail")?.value?.trim();
-
-      let department = el("editEmployeeDepartment")?.value?.trim() || null;
-      if (department === "custom") {
-        department = el("customDepartmentEdit")?.value?.trim() || null;
-      }
-
-      if (!name || !email) {
-        openInfo("Campos obrigatórios", "Nome e e-mail são obrigatórios.");
-        return;
-      }
-
-      try {
-        const { error } = await sb()
-          .from("employees")
-          .update({ name, email, department })
-          .eq("id", editingEmployeeId);
-
-        if (error) throw error;
-
-        employeesCache = await fetchEmployees();
-
-        await refreshEmployeesPage();
-        renderFridaysGrid();
-        populateLeaveEmployeeSelect(employeesCache);
-        window.closeEditEmployeeModal();
-        openInfo("Atualizado", "Colaborador atualizado com sucesso.");
-      } catch (err) {
-        console.error(err);
-        openInfo("Erro", `Não foi possível atualizar. Veja o console (F12).<br/><br/>${err.message ?? err}`);
-      }
-    });
-  }
-
-  function openDeleteEmployee(empId) {
-    const emp = employeesCache.find(e => String(e.id) === String(empId));
-    if (!emp) return;
-
-    deletingEmployeeId = empId;
-    const box = el("deleteEmployeeInfo");
-    if (box) {
-      box.innerHTML = `
-        <div class="text-sm text-gray-700">
-          Tem certeza que deseja excluir <b>${emp.name ?? "-"}</b>?
-          <div class="text-xs text-gray-500 mt-1">${emp.email ?? ""}</div>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gestão de Folgas - Sexta-feira</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body class="bg-gray-50 font-sans">
+  <!-- Header -->
+  <header class="monday-gradient text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-6 py-6">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <img src="logo.png" alt="Logo da Empresa" class="h-10 w-auto" />
+          <div class="leading-tight">
+            <h1 class="text-3xl font-bold">Gestão de Folgas</h1>
+            <p class="text-purple-100 text-sm">Controle de folgas Globo Leilões</p>
+          </div>
         </div>
-      `;
-    }
 
-    showNode("deleteConfirmModal");
-  }
+        <div class="flex items-center space-x-4">
+          <div class="text-right">
+            <div class="text-sm text-purple-100">Visualizando</div>
+            <div class="text-xl font-semibold" id="currentView">Todas as Sextas</div>
+          </div>
+          <div class="flex space-x-2">
+            <button onclick="showPendingRequests?.()"
+              class="bg-yellow-500 bg-opacity-90 hover:bg-opacity-100 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+              ⏳ Pendências (<span id="headerPendingCount">0</span>)
+            </button>
+            <button onclick="showAllLeaves?.()"
+              class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+              📊 Ver Todas as Folgas
+            </button>
+            <button onclick="showPasswordModal?.()"
+              class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+              👥 Colaboradores
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
 
-  window.closeDeleteConfirmModal = () => {
-    deletingEmployeeId = null;
-    hideNode("deleteConfirmModal");
-  };
+  <!-- Main -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="bg-blue-100 p-3 rounded-lg">
+            <span class="text-2xl">👥</span>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">Total Colaboradores</p>
+            <p class="text-2xl font-bold text-gray-900" id="totalEmployees">0</p>
+          </div>
+        </div>
+      </div>
 
-  window.executeConfirmedDeletion = async () => {
-    if (!deletingEmployeeId) return;
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="bg-green-100 p-3 rounded-lg">
+            <span class="text-2xl">✅</span>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">De Folga</p>
+            <p class="text-2xl font-bold text-green-600" id="onLeave">0</p>
+          </div>
+        </div>
+      </div>
 
-    try {
-      // Se existir leaves com FK, pode dar erro (dependendo do seu schema).
-      // Se quiser, posso te passar um delete em cascata controlado.
-      const { error } = await sb().from("employees").delete().eq("id", deletingEmployeeId);
-      if (error) throw error;
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="bg-orange-100 p-3 rounded-lg">
+            <span class="text-2xl">💼</span>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">Trabalhando</p>
+            <p class="text-2xl font-bold text-orange-600" id="working">0</p>
+          </div>
+        </div>
+      </div>
 
-      employeesCache = await fetchEmployees();
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center">
+          <div class="bg-yellow-100 p-3 rounded-lg">
+            <span class="text-2xl">⏳</span>
+          </div>
+          <div class="ml-4">
+            <p class="text-sm text-gray-600">Pendentes</p>
+            <p class="text-2xl font-bold text-yellow-600" id="pendingRequests">0</p>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      await refreshEmployeesPage();
-      renderFridaysGrid();
-      populateLeaveEmployeeSelect(employeesCache);
-      window.closeDeleteConfirmModal();
-      openInfo("Excluído", "Colaborador excluído com sucesso.");
+    <!-- Filter -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">Filtrar por Período</h2>
+          <p class="text-gray-600 text-sm">Selecione o ano e mês para visualizar as sextas-feiras</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Ano</label>
+            <select id="yearSelect"
+              class="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"></select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Mês</label>
+            <select id="monthSelect"
+              class="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"></select>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      // Recarrega tabela principal se estiver numa sexta selecionada
-      await loadEmployeesForSelectedFriday();
-    } catch (err) {
-      console.error(err);
-      openInfo("Erro", `Não foi possível excluir. Veja o console (F12).<br/><br/>${err.message ?? err}`);
-    }
-  };
+    <!-- Fridays -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">Sextas-feiras do Mês</h2>
+          <p class="text-gray-600 text-sm">Clique em uma sexta-feira para gerenciar as folgas</p>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button onclick="openRegisterLeaveModal?.()"
+            class="bg-[#16263E] hover:bg-[#16263E]/90 text-white px-6 py-3 rounded-lg font-medium shadow-lg transition-all duration-300 hover:-translate-y-1">
+            📝 Registrar Folga
+          </button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="fridaysGrid"></div>
+    </div>
 
-  // ---------- Views do Header (placeholders) ----------
-  window.showAllLeaves = () => {
-    openInfo("Em desenvolvimento", "Aqui você pode listar todas as folgas (histórico). Se quiser, eu implemento completo.");
-  };
+    <!-- Employees table -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-6 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900" id="tableTitle">
+          Colaboradores - Selecione uma sexta-feira
+        </h3>
+        <p class="text-gray-600 text-sm">Gerencie as folgas dos colaboradores</p>
+      </div>
 
-  window.showPendingRequests = () => {
-    openInfo("Em desenvolvimento", "Aqui você pode listar pendências (status = pending). Se quiser, eu implemento completo.");
-  };
+      <!-- ✅ Fallback visual (não fica branco) -->
+      <div id="tableHint" class="px-6 py-3 text-sm text-gray-600 bg-gray-50 border-b border-gray-200">
+        Selecione um mês/ano e clique em uma sexta-feira para carregar os colaboradores.
+      </div>
 
-  // ---------- Bootstrap ----------
-  async function bootstrap() {
-    try {
-      // Carrega colaboradores 1x (sempre)
-      employeesCache = await fetchEmployees();
+      <div class="overflow-x-auto max-h-96 overflow-y-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+            <tr>
+              <th class="text-left py-4 px-6 font-semibold text-gray-700">Colaborador</th>
+              <th class="text-left py-4 px-6 font-semibold text-gray-700">Departamento</th>
+              <th class="text-left py-4 px-6 font-semibold text-gray-700">Status</th>
+              <th class="text-left py-4 px-6 font-semibold text-gray-700">Observações</th>
+              <th class="text-center py-4 px-6 font-semibold text-gray-700">Ações</th>
+            </tr>
+          </thead>
 
-      // Atualiza KPIs base (sem sexta selecionada)
-      updateStats(employeesCache, []);
+          <!-- ✅ Linha inicial pra nunca ficar "branco" -->
+          <tbody id="employeeTableBody">
+            <tr>
+              <td class="py-6 px-6 text-gray-500" colspan="5">
+                Selecione uma sexta-feira para visualizar os colaboradores.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
 
-      // Popular select do modal sempre (não depende de mês)
-      populateLeaveEmployeeSelect(employeesCache);
+  <!-- Modais -->
+  <div id="infoModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 id="infoModalTitle" class="text-lg font-semibold">Título</h3>
+        <button type="button" onclick="closeInfoModal?.()" class="text-gray-500 hover:text-gray-700">✖</button>
+      </div>
+      <div id="infoModalContent" class="text-sm text-gray-700">...</div>
+    </div>
+  </div>
 
-      // Inicializa selectors e grid
-      initYearMonthSelectors();
-      renderFridaysGrid();
+  <div id="passwordModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50" style="display:none;">
+    <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-5">
+      <h3 id="passwordModalTitle" class="text-lg font-semibold mb-1">🔒 Acesso Restrito</h3>
+      <p id="passwordModalSubtitle" class="text-sm text-gray-600 mb-4">Digite a senha para continuar</p>
+      <form id="passwordForm" class="space-y-3">
+        <input id="passwordInput" type="password" class="w-full border rounded-lg px-3 py-2" placeholder="Senha"/>
+        <div id="passwordError" class="text-sm text-red-600 hidden">Senha incorreta.</div>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="px-3 py-2 border rounded-lg" onclick="closePasswordModal?.()">Cancelar</button>
+          <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Entrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-      // Placeholder inicial (não branco)
-      setEmployeeTablePlaceholder("Selecione uma sexta-feira para visualizar os colaboradores.");
-      setTableTitle("Colaboradores - Selecione uma sexta-feira");
+  <div id="registerLeaveModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <h3 class="text-lg font-semibold mb-4">📝 Registrar Folga</h3>
+      <form id="registerLeaveForm" class="space-y-3">
+        <label class="block text-sm font-medium">Colaborador</label>
 
-      // Header pendências
-      const pendingCount = await fetchPendingLeavesCount();
-      setText("headerPendingCount", pendingCount);
+        <!-- ✅ Estado inicial do select pra não parecer "vazio do nada" -->
+        <select id="leaveEmployeeSelect" class="w-full border rounded-lg px-3 py-2">
+          <option value="">Carregando colaboradores...</option>
+        </select>
 
-      // Página colaboradores
-      await refreshEmployeesPage();
-    } catch (err) {
-      console.error(err);
-      openInfo(
-        "Erro ao iniciar",
-        `Não consegui carregar os dados do Supabase.<br/><br/>
-         <b>Dica:</b> abra o console (F12) e veja o erro.<br/><br/>
-         ${err.message ?? err}`
-      );
-      setEmployeeTablePlaceholder("Erro ao carregar. Veja o console (F12).");
-    }
-  }
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeRegisterLeaveModal?.()">Cancelar</button>
+          <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Registrar</button>
+        </div>
+      </form>
+      <p class="mt-3 text-xs text-gray-500">
+        Se a lista não carregar, verifique o console (F12) — é um problema no <b>script.js</b> (consulta do BD).
+      </p>
+    </div>
+  </div>
 
-  // ---------- Wire forms ----------
-  document.addEventListener("DOMContentLoaded", () => {
-    wirePasswordForm();
-    wireRegisterLeaveForm();
-    wireAddEmployeeForm();
-    wireEditEmployeeForm();
-    bootstrap();
-  });
-})();
+  <!-- Página de Colaboradores -->
+  <div id="employeesPage" class="hidden fixed inset-0 z-40 overflow-y-auto">
+    <!-- (mantive igual ao seu original, sem alterar conteúdo) -->
+    <header class="monday-gradient text-white shadow-lg sticky top-0 z-10">
+      <div class="max-w-7xl mx-auto px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <img src="logo.png" alt="Logo da Empresa" class="h-8 w-auto" />
+            <div class="leading-tight">
+              <h1 class="text-2xl font-bold">Gestão de Colaboradores</h1>
+              <p class="text-purple-100 text-xs">Cadastro e gerenciamento</p>
+            </div>
+          </div>
+          <button type="button" class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium" onclick="closeEmployeesPage?.()">Fechar</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="bg-gray-50 min-h-full">
+      <div class="max-w-7xl mx-auto px-6 py-6">
+        <!-- KPIs -->
+        <div class="grid grid-cols-1 md-grid-cols-4 md:grid-cols-4 gap-6 mb-8">
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+            <div class="bg-blue-100 p-3 rounded-lg"><span class="text-2xl">👥</span></div>
+            <div class="ml-4">
+              <p class="text-sm text-gray-600">Total colaboradores</p>
+              <p id="totalEmployeesPage" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+            <div class="bg-green-100 p-3 rounded-lg"><span class="text-2xl">📊</span></div>
+            <div class="ml-4">
+              <p class="text-sm text-gray-600">Departamentos</p>
+              <p id="totalDepartments" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+            <div class="bg-yellow-100 p-3 rounded-lg"><span class="text-2xl">🧾</span></div>
+            <div class="ml-4">
+              <p class="text-sm text-gray-600">Novos hoje</p>
+              <p id="todayRegistrations" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ações + Form -->
+        <div class="mb-6">
+          <button type="button" class="px-3 py-2 bg-[#16263E] text-white rounded-lg shadow" onclick="showAddEmployeeForm?.()">➕ Adicionar colaborador</button>
+          <div id="addEmployeeFormSection" class="hidden mt-4 bg-white border rounded-xl p-4">
+            <form id="addEmployeeFormPage" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium">Nome</label>
+                <input id="employeeNamePage" type="text" class="w-full border rounded-lg px-3 py-2" required />
+              </div>
+              <div>
+                <label class="block text-sm font-medium">E-mail</label>
+                <input id="employeeEmailPage" type="email" class="w-full border rounded-lg px-3 py-2" required />
+              </div>
+              <div>
+                <label class="block text-sm font-medium">Departamento</label>
+                <select id="employeeDepartmentPage" class="w-full border rounded-lg px-3 py-2">
+                  <option value="Comercial">Comercial</option>
+                  <option value="Tecnologia">Tecnologia</option>
+                  <option value="Backoffice">Backoffice</option>
+                  <option value="Administrativo">Administrativo</option>
+                  <option value="Jurídico">Jurídico</option>
+                  <option value="Pós-leilão">Pós-leilão</option>
+                  <option value="Averbações e Avaliações">Averbações e Avaliações</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium">Foto</label>
+                <input id="employeePhotoPage" type="file" accept="image/*" class="w-full" />
+                <div id="photoPreviewPage" class="mt-2 w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-2xl text-gray-400">📷</div>
+              </div>
+              <div class="md:col-span-2 flex justify-end gap-2">
+                <button type="button" class="px-3 py-2 border rounded-lg" onclick="hideAddEmployeeForm?.()">Cancelar</button>
+                <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Lista -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+              <tr>
+                <th class="text-left py-3 px-4">Colaborador</th>
+                <th class="text-left py-3 px-4">E-mail</th>
+                <th class="text-left py-3 px-4">Departamento</th>
+                <th class="text-left py-3 px-4">Criado em</th>
+                <th class="text-center py-3 px-4">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="employeesListTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar -->
+  <div id="editEmployeeModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <h3 class="text-lg font-semibold mb-4">✏️ Editar colaborador</h3>
+      <form id="editEmployeeForm" class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium">Nome</label>
+          <input id="editEmployeeName" type="text" class="w-full border rounded-lg px-3 py-2" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium">E-mail</label>
+          <input id="editEmployeeEmail" type="email" class="w-full border rounded-lg px-3 py-2" required />
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Departamento</label>
+          <select id="editEmployeeDepartment" class="w-full border rounded-lg px-3 py-2">
+            <option value="Comercial">Comercial</option>
+            <option value="Tecnologia">Tecnologia</option>
+            <option value="Backoffice">Backoffice</option>
+            <option value="custom">Outro (digitar)</option>
+          </select>
+          <input id="customDepartmentEdit" class="hidden mt-2 w-full border rounded-lg px-3 py-2" placeholder="Novo departamento" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium">Foto</label>
+          <input id="employeePhotoEdit" type="file" accept="image/*" />
+          <div id="photoPreviewEdit" class="mt-2 w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-2xl text-gray-400">📷</div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeEditEmployeeModal?.()">Cancelar</button>
+          <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Excluir -->
+  <div id="deleteConfirmModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <h3 class="text-lg font-semibold mb-3">🗑️ Excluir colaborador</h3>
+      <div id="deleteEmployeeInfo" class="mb-4"></div>
+      <div class="flex justify-end gap-2">
+        <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeDeleteConfirmModal?.()">Cancelar</button>
+        <button type="button" class="px-3 py-2 bg-red-600 text-white rounded-lg" onclick="executeConfirmedDeletion?.()">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Supabase UMD + inicialização -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script>
+    const SUPABASE_URL = "https://omyojnkydyuxnqaigrzy.supabase.co";
+    const SUPABASE_KEY = "SUA_CHAVE_AQUI";
+
+    window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log("Supabase conectado (UMD)!", window.supabase);
+
+    // ✅ FIX VISUAL: nunca deixar a tabela "branca" ao trocar mês/ano
+    // Isso NÃO substitui o seu script.js. Só garante feedback ao usuário.
+    (function () {
+      const tbody = document.getElementById("employeeTableBody");
+      const yearSelect = document.getElementById("yearSelect");
+      const monthSelect = document.getElementById("monthSelect");
+      const title = document.getElementById("tableTitle");
+
+      function setPlaceholder(msg) {
+        if (!tbody) return;
+        tbody.innerHTML = `
+          <tr>
+            <td class="py-6 px-6 text-gray-500" colspan="5">${msg}</td>
+          </tr>
+        `;
+      }
+
+      function resetOnPeriodChange() {
+        if (title) title.textContent = "Colaboradores - Selecione uma sexta-feira";
+        setPlaceholder("Selecione uma sexta-feira para visualizar os colaboradores.");
+      }
+
+      yearSelect?.addEventListener("change", resetOnPeriodChange);
+      monthSelect?.addEventListener("change", resetOnPeriodChange);
+
+      // estado inicial
+      setPlaceholder("Selecione uma sexta-feira para visualizar os colaboradores.");
+    })();
+  </script>
+
+  <!-- Seu JS principal (usa window.supabase) -->
+  <script src="./script.js" defer></script>
+</body>
+</html>
