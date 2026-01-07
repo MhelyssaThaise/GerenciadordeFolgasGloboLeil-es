@@ -1,11 +1,3 @@
-/* =========================================================
-   GESTÃO DE FOLGAS — script.js (COM SENHA + COLABORADORES AJUSTADO)
-   - Tabela principal: mostra SOMENTE folgas registradas na sexta
-   - Senha obrigatória: aprovar / rejeitar / remover / excluir / remover folga
-   - Botão "Colaboradores": pede senha e abre a tela
-   - Tela de colaboradores: lista com avatar + ações editar/excluir (com senha)
-   ========================================================= */
-
 const PASSWORD = "03082020";
 
 let selectedFriday = null;
@@ -658,3 +650,4 @@ Object.assign(window, {
 
   showAllLeaves, showPendingRequests
 });
+
