@@ -1,10 +1,3 @@
-/* =========================================================
-   GESTÃO DE FOLGAS — script.js (VERSÃO FINAL CORRIGIDA)
-   Tabelas:
-   funcionarios(id, name, email, department, photo_url, created_at)
-   folgas(id, employee_id, friday_date, status, notes, created_at)
-   ========================================================= */
-
 const PASSWORD = "03082020";
 
 let selectedFriday = null;
@@ -15,7 +8,7 @@ let editingEmployeeId = null;
 let pendingRemoveFromFridayId = null;
 
 // Estado
-let employeesDB = [];   // TODOS os colaboradores
+let employeesDB = [];   // TODOS os colaboradores (para o select e stats)
 let fridayData  = {};   // folgas agrupadas por sexta (DD/MM/YYYY)
 
 // Supabase
@@ -34,6 +27,12 @@ function toISODateBR(br){
 }
 function formatBR(d){
   return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+}
+
+function escapeHtml(str=""){
+  return String(str).replace(/[&<>"']/g, (m) => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[m]));
 }
 
 /* ===================== SYNC DB ===================== */
@@ -66,6 +65,7 @@ async function syncFromDB(){
     (leaves||[]).forEach(l=>{
       const d = new Date(l.friday_date + 'T00:00:00');
       const key = formatBR(d);
+
       if (!fridayData[key]) fridayData[key] = [];
       fridayData[key].push({
         id: l.id,
@@ -81,7 +81,7 @@ async function syncFromDB(){
     console.error(e);
     showInfoModal(
       "❌ Erro Supabase",
-      `<div>${e.message}</div>
+      `<div>${escapeHtml(e.message || "Erro desconhecido")}</div>
        <div class="text-xs text-gray-500">Verifique RLS / policies</div>`
     );
   }
@@ -95,75 +95,92 @@ function getStatusBadge(status){
     return '<span class="px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800">⏳ Pendente</span>';
   if (status==='Rejeitada')
     return '<span class="px-3 py-1 rounded-full text-sm bg-red-100 text-red-800">❌ Rejeitada</span>';
-  return '<span class="px-3 py-1 rounded-full text-sm bg-orange-100 text-orange-800">💼 Trabalhando</span>';
+  // qualquer coisa fora disso vira neutro
+  return '<span class="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700">—</span>';
 }
 
+/**
+ * ✅ NOVO COMPORTAMENTO:
+ * - Se não selecionou sexta: mensagem
+ * - Se selecionou e não há registros: "Nenhuma folga registrada"
+ * - Se há registros: mostra SOMENTE quem está em fridayData[selectedFriday]
+ */
 function renderEmployees(){
   const tbody = document.getElementById('employeeTableBody');
   if (!tbody) return;
 
-  tbody.innerHTML = '';
-
-  if (!employeesDB.length){
+  // estado: sem sexta selecionada
+  if (!selectedFriday){
     tbody.innerHTML = `
-      <tr><td colspan="5" class="py-8 px-6 text-center text-gray-500">
-        Nenhum colaborador cadastrado
-      </td></tr>`;
+      <tr>
+        <td colspan="5" class="py-8 px-6 text-center text-gray-500">
+          Selecione uma sexta-feira para visualizar as folgas registradas.
+        </td>
+      </tr>`;
+    updateStats();
     return;
   }
 
-  const leavesToday = selectedFriday ? (fridayData[selectedFriday]||[]) : [];
-  const leaveMap = new Map(leavesToday.map(l=>[l.employeeId,l]));
+  const leavesTodayRaw = (fridayData[selectedFriday] || []);
 
-  employeesDB.forEach(emp=>{
-    const leave = leaveMap.get(emp.id);
-    const status = leave?.status || 'Trabalhando';
-    const notes  = leave?.notes  || '-';
+  // ✅ considere apenas registros "válidos" (não existe mais status Trabalhando)
+  const leavesToday = leavesTodayRaw.filter(l =>
+    l.status === 'Folga' || l.status === 'Pendente' || l.status === 'Rejeitada'
+  );
 
+  if (!leavesToday.length){
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="5" class="py-8 px-6 text-center text-gray-500">
+          Nenhuma folga registrada para <b>${selectedFriday}</b>.
+        </td>
+      </tr>`;
+    updateStats();
+    return;
+  }
+
+  // Renderiza SOMENTE quem tem registro
+  tbody.innerHTML = leavesToday.map(l=>{
+    const emp = l.employee || {};
     const photo = emp.photo_url
       ? `<img src="${emp.photo_url}" class="w-10 h-10 rounded-full object-cover">`
       : `<div class="w-10 h-10 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold">
-           ${emp.name.charAt(0)}
+           ${(emp.name || "?").charAt(0)}
          </div>`;
 
+    // ações por status
     let actions = '';
-    if (!selectedFriday){
-      actions = `<span class="text-xs text-gray-400">Selecione uma sexta</span>`;
-    } else if (!leave){
+    if (l.status === 'Pendente'){
       actions = `
-        <button
-          onclick="openRegisterLeaveModal(); setTimeout(()=>document.getElementById('leaveEmployeeSelect').value='${emp.id}',0)"
-          class="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg">
-          ➕ Registrar
-        </button>`;
-    } else if (status==='Pendente'){
+        <button onclick="approveLeave(${l.id})" class="text-green-600 mr-2">Aprovar</button>
+        <button onclick="rejectLeave(${l.id})" class="text-red-600 mr-2">Rejeitar</button>
+        <button onclick="removeFromFriday(${l.id})" class="text-gray-600">Remover</button>`;
+    } else if (l.status === 'Folga') {
       actions = `
-        <button onclick="approveLeave(${leave.id})" class="text-green-600 mr-2">Aprovar</button>
-        <button onclick="rejectLeave(${leave.id})" class="text-red-600 mr-2">Rejeitar</button>
-        <button onclick="removeFromFriday(${leave.id})" class="text-gray-600">Remover</button>`;
-    } else {
+        <button onclick="toggleStatus(${l.id})" class="text-purple-600 mr-2">Remover folga</button>
+        <button onclick="removeFromFriday(${l.id})" class="text-red-600">Excluir</button>`;
+    } else { // Rejeitada
       actions = `
-        <button onclick="toggleStatus(${leave.id})" class="text-purple-600 mr-2">Alterar</button>
-        <button onclick="removeFromFriday(${leave.id})" class="text-red-600">Remover</button>`;
+        <button onclick="removeFromFriday(${l.id})" class="text-red-600">Remover</button>`;
     }
 
-    tbody.innerHTML += `
+    return `
       <tr class="border-b">
         <td class="py-4 px-6">
           <div class="flex items-center">
             ${photo}
             <div class="ml-3">
-              <div class="font-medium">${emp.name}</div>
-              <div class="text-xs text-gray-500">${emp.email||''}</div>
+              <div class="font-medium">${escapeHtml(emp.name || "-")}</div>
+              <div class="text-xs text-gray-500">${escapeHtml(emp.email || "")}</div>
             </div>
           </div>
         </td>
-        <td class="py-4 px-6">${emp.department||''}</td>
-        <td class="py-4 px-6">${getStatusBadge(status)}</td>
-        <td class="py-4 px-6">${notes}</td>
+        <td class="py-4 px-6">${escapeHtml(emp.department || "")}</td>
+        <td class="py-4 px-6">${getStatusBadge(l.status)}</td>
+        <td class="py-4 px-6">${l.notes ? escapeHtml(l.notes) : '-'}</td>
         <td class="py-4 px-6 text-center">${actions}</td>
       </tr>`;
-  });
+  }).join("");
 
   updateStats();
 }
@@ -172,21 +189,22 @@ function updateStats(){
   const total = employeesDB.length;
   document.getElementById('totalEmployees').textContent = total;
 
-  const leavesToday = selectedFriday ? (fridayData[selectedFriday]||[]) : [];
-  let onLeave = 0, pending = 0;
+  const leavesTodayRaw = selectedFriday ? (fridayData[selectedFriday]||[]) : [];
 
-  leavesToday.forEach(l=>{
+  // ✅ conta só estados válidos
+  let onLeave = 0, pending = 0;
+  leavesTodayRaw.forEach(l=>{
     if (l.status==='Folga') onLeave++;
     if (l.status==='Pendente') pending++;
   });
 
   document.getElementById('onLeave').textContent = onLeave;
   document.getElementById('pendingRequests').textContent = pending;
-  document.getElementById('working').textContent = total - onLeave - pending;
+  document.getElementById('working').textContent = Math.max(0, total - onLeave - pending);
 
   let headerPending = 0;
   Object.values(fridayData).forEach(list=>{
-    headerPending += list.filter(l=>l.status==='Pendente').length;
+    headerPending += (list||[]).filter(l=>l.status==='Pendente').length;
   });
   document.getElementById('headerPendingCount').textContent = headerPending;
 }
@@ -203,9 +221,16 @@ function getFridaysInMonth(y,m){
 function renderFridaysGrid(){
   const grid=document.getElementById('fridaysGrid');
   grid.innerHTML='';
+
   getFridaysInMonth(currentYear,currentMonth).forEach(d=>{
     const key=formatBR(d);
-    const count=(fridayData[key]||[]).length;
+
+    // ✅ conta só registros válidos (não conta "Trabalhando")
+    const list = fridayData[key] || [];
+    const count = list.filter(l =>
+      l.status === 'Folga' || l.status === 'Pendente' || l.status === 'Rejeitada'
+    ).length;
+
     const card=document.createElement('div');
     card.className=`border rounded-xl p-4 cursor-pointer ${selectedFriday===key?'border-purple-500 bg-purple-50':'border-gray-200'}`;
     card.onclick=()=>selectFriday(key);
@@ -234,17 +259,40 @@ async function dbUpsertLeave(employeeId, fridayBR){
     status:'Pendente',
     notes:'Aguardando aprovação'
   },{onConflict:'employee_id,friday_date'});
+
   await syncFromDB();
 }
-async function approveLeave(id){ await sb.from('folgas').update({status:'Folga'}).eq('id',id); syncFromDB(); }
-async function rejectLeave(id){ await sb.from('folgas').update({status:'Rejeitada'}).eq('id',id); syncFromDB(); }
+
+async function approveLeave(id){
+  await sb.from('folgas').update({status:'Folga'}).eq('id',id);
+  syncFromDB();
+}
+
+async function rejectLeave(id){
+  await sb.from('folgas').update({status:'Rejeitada'}).eq('id',id);
+  syncFromDB();
+}
+
+/**
+ * ✅ Ajuste importante:
+ * NÃO existe "status Trabalhando" na tabela folgas.
+ * Se quer "voltar a trabalhar", o certo é DELETAR o registro daquela sexta.
+ */
 async function toggleStatus(id){
   const l = Object.values(fridayData).flat().find(x=>x.id===id);
   if (!l) return;
-  const ns = l.status==='Folga'?'Trabalhando':'Folga';
-  await sb.from('folgas').update({status:ns}).eq('id',id);
+
+  // se está de folga -> remover registro (volta a trabalhar)
+  if (l.status === 'Folga'){
+    await sb.from('folgas').delete().eq('id', id);
+  } else {
+    // se não está de folga (pendente/rejeitada), pode marcar como folga
+    await sb.from('folgas').update({status:'Folga'}).eq('id', id);
+  }
+
   syncFromDB();
 }
+
 async function removeFromFriday(id){
   await sb.from('folgas').delete().eq('id',id);
   syncFromDB();
@@ -266,9 +314,19 @@ function closeRegisterLeaveModal(){
 function populateEmployeeSelect(){
   const s=document.getElementById('leaveEmployeeSelect');
   s.innerHTML='<option value="">Selecione…</option>';
+
+  // ✅ não mostrar quem já está registrado nessa sexta
+  const leavesToday = selectedFriday ? (fridayData[selectedFriday]||[]) : [];
+  const registered = new Set(leavesToday.map(l => l.employeeId));
+
   employeesDB.forEach(e=>{
-    s.innerHTML+=`<option value="${e.id}">${e.name} - ${e.department||''}</option>`;
+    if (registered.has(e.id)) return;
+    s.innerHTML+=`<option value="${e.id}">${escapeHtml(e.name)} - ${escapeHtml(e.department||'')}</option>`;
   });
+
+  if (s.options.length === 1){
+    s.innerHTML = `<option value="">Todos já estão registrados nesta sexta.</option>`;
+  }
 }
 
 document.getElementById('registerLeaveForm')?.addEventListener('submit',async e=>{
