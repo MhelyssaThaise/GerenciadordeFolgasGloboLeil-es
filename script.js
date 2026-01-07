@@ -1,3 +1,10 @@
+/* =========================================================
+   GESTÃO DE FOLGAS — script.js (FIX: APROVAR/REJEITAR ATUALIZA)
+   - Tabela principal: mostra SOMENTE folgas registradas na sexta
+   - Senha obrigatória: aprovar / rejeitar / remover / excluir
+   - Colaboradores: lista com avatar + ações editar/excluir (com senha)
+   ========================================================= */
+
 const PASSWORD = "03082020";
 
 let selectedFriday = null;
@@ -32,15 +39,29 @@ function escapeHtml(str=""){
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
   }[m]));
 }
+function ensureSB(){
+  if (!sb || !sb.from) {
+    showInfoModal("❌ Supabase não inicializado", `
+      <div class="text-sm">
+        O <b>window.supabase</b> não foi carregado antes do script.js.<br/>
+        Confirme se o script do Supabase vem antes do script.js no HTML.
+      </div>
+    `);
+    throw new Error("Supabase client not initialized");
+  }
+}
 
 /* ===================== INFO MODAL ===================== */
 function showInfoModal(title, html){
-  document.getElementById('infoModalTitle').textContent = title;
-  document.getElementById('infoModalContent').innerHTML = html;
-  document.getElementById('infoModal').classList.remove('hidden');
+  const t = document.getElementById('infoModalTitle');
+  const c = document.getElementById('infoModalContent');
+  const m = document.getElementById('infoModal');
+  if (t) t.textContent = title;
+  if (c) c.innerHTML = html;
+  m?.classList.remove('hidden');
 }
 function closeInfoModal(){
-  document.getElementById('infoModal').classList.add('hidden');
+  document.getElementById('infoModal')?.classList.add('hidden');
 }
 
 /* ===================== PASSWORD MODAL ===================== */
@@ -64,8 +85,7 @@ function showPasswordModal(actionFn, opts = {}){
 }
 
 function closePasswordModal(){
-  const modal = document.getElementById("passwordModal");
-  modal?.classList.add("hidden");
+  document.getElementById("passwordModal")?.classList.add("hidden");
 }
 
 document.getElementById("passwordForm")?.addEventListener("submit", (e) => {
@@ -87,10 +107,14 @@ document.getElementById("passwordForm")?.addEventListener("submit", (e) => {
 
   try {
     if (typeof fn === "function") {
-      Promise.resolve(fn()).catch(console.error);
+      Promise.resolve(fn()).catch((ex)=>{
+        console.error(ex);
+        showInfoModal("❌ Erro", `<div class="text-sm">${escapeHtml(ex.message || String(ex))}</div>`);
+      });
     }
   } catch (ex) {
     console.error(ex);
+    showInfoModal("❌ Erro", `<div class="text-sm">${escapeHtml(ex.message || String(ex))}</div>`);
   }
 });
 
@@ -105,6 +129,7 @@ function initPeriodSelectors(){
   if (!yearSel || !monthSel) return;
 
   const base = new Date().getFullYear();
+
   yearSel.innerHTML = "";
   for (let y = base - 2; y <= base + 2; y++){
     const opt = document.createElement("option");
@@ -127,12 +152,15 @@ function initPeriodSelectors(){
     monthSel.appendChild(opt);
   });
 
-  function onChange(){
+  async function onChange(){
     currentYear = parseInt(yearSel.value, 10);
     currentMonth = parseInt(monthSel.value, 10);
     selectedFriday = null;
-    document.getElementById('tableTitle').textContent = "Colaboradores - Selecione uma sexta-feira";
-    syncFromDB();
+
+    const tt = document.getElementById('tableTitle');
+    if (tt) tt.textContent = "Colaboradores - Selecione uma sexta-feira";
+
+    await syncFromDB();
   }
 
   yearSel.addEventListener("change", onChange);
@@ -142,6 +170,8 @@ function initPeriodSelectors(){
 /* ===================== SYNC DB ===================== */
 async function syncFromDB(){
   try{
+    ensureSB();
+
     const { data: emps, error: empErr } = await sb
       .from('funcionarios')
       .select('*')
@@ -184,8 +214,8 @@ async function syncFromDB(){
     console.error(e);
     showInfoModal(
       "❌ Erro Supabase",
-      `<div>${escapeHtml(e.message || "Erro desconhecido")}</div>
-       <div class="text-xs text-gray-500">Verifique RLS / policies</div>`
+      `<div class="text-sm">${escapeHtml(e.message || "Erro desconhecido")}</div>
+       <div class="text-xs text-gray-500 mt-2">Se for RLS/Policy, o Supabase vai negar UPDATE/DELETE.</div>`
     );
   }
 }
@@ -202,8 +232,14 @@ function getStatusBadge(status){
 }
 
 function updateStats(){
+  const totalEl = document.getElementById('totalEmployees');
+  const onEl = document.getElementById('onLeave');
+  const penEl = document.getElementById('pendingRequests');
+  const workEl = document.getElementById('working');
+  const headPen = document.getElementById('headerPendingCount');
+
   const total = employeesDB.length;
-  document.getElementById('totalEmployees').textContent = total;
+  if (totalEl) totalEl.textContent = total;
 
   const leavesToday = selectedFriday ? (fridayData[selectedFriday] || []) : [];
   let onLeave = 0, pending = 0;
@@ -213,15 +249,15 @@ function updateStats(){
     if (l.status === 'Pendente') pending++;
   });
 
-  document.getElementById('onLeave').textContent = onLeave;
-  document.getElementById('pendingRequests').textContent = pending;
-  document.getElementById('working').textContent = Math.max(0, total - onLeave - pending);
+  if (onEl) onEl.textContent = onLeave;
+  if (penEl) penEl.textContent = pending;
+  if (workEl) workEl.textContent = String(Math.max(0, total - onLeave - pending));
 
   let headerPending = 0;
   Object.values(fridayData).forEach(list=>{
     headerPending += (list||[]).filter(l=>l.status==='Pendente').length;
   });
-  document.getElementById('headerPendingCount').textContent = headerPending;
+  if (headPen) headPen.textContent = headerPending;
 }
 
 /* ===================== FRIDAYS ===================== */
@@ -260,7 +296,8 @@ function renderFridaysGrid(){
 
 function selectFriday(key){
   selectedFriday = key;
-  document.getElementById('tableTitle').textContent = `Colaboradores - ${key}`;
+  const tt = document.getElementById('tableTitle');
+  if (tt) tt.textContent = `Colaboradores - ${key}`;
   renderFridaysGrid();
   renderLeavesTable();
 }
@@ -336,32 +373,66 @@ function renderLeavesTable(){
 
 /* ===================== FOLGAS (AÇÕES REAIS) ===================== */
 async function dbUpsertLeave(employeeId, fridayBR){
-  await sb.from('folgas').upsert({
+  ensureSB();
+
+  const { error } = await sb.from('folgas').upsert({
     employee_id: employeeId,
     friday_date: toISODateBR(fridayBR),
     status: 'Pendente',
     notes: 'Aguardando aprovação'
   }, { onConflict: 'employee_id,friday_date' });
 
+  if (error) {
+    showInfoModal("❌ Erro ao registrar", `<div class="text-sm">${escapeHtml(error.message)}</div>`);
+    return;
+  }
+
   await syncFromDB();
 }
 
-// internos
+// internos (AGORA COM CHECK DE ERRO + await refresh)
 async function _approveLeave(id){
-  await sb.from('folgas').update({status:'Folga'}).eq('id', id);
-  syncFromDB();
+  ensureSB();
+  const { error } = await sb.from('folgas').update({
+    status: 'Folga',
+    notes: '✅ Aprovado'
+  }).eq('id', id);
+
+  if (error){
+    showInfoModal("❌ Não foi possível aprovar", `<div class="text-sm">${escapeHtml(error.message)}</div>`);
+    return;
+  }
+
+  await syncFromDB();
 }
 async function _rejectLeave(id){
-  await sb.from('folgas').update({status:'Rejeitada'}).eq('id', id);
-  syncFromDB();
+  ensureSB();
+  const { error } = await sb.from('folgas').update({
+    status: 'Rejeitada',
+    notes: '❌ Rejeitado'
+  }).eq('id', id);
+
+  if (error){
+    showInfoModal("❌ Não foi possível rejeitar", `<div class="text-sm">${escapeHtml(error.message)}</div>`);
+    return;
+  }
+
+  await syncFromDB();
 }
 async function _removeFromFriday(id){
-  await sb.from('folgas').delete().eq('id', id);
-  syncFromDB();
+  ensureSB();
+  const { error } = await sb.from('folgas').delete().eq('id', id);
+
+  if (error){
+    showInfoModal("❌ Não foi possível excluir", `<div class="text-sm">${escapeHtml(error.message)}</div>`);
+    return;
+  }
+
+  await syncFromDB();
 }
 async function _toggleStatus(id){
-  await sb.from('folgas').delete().eq('id', id);
-  syncFromDB();
+  // aqui você chamou “Remover folga” = apagar registro
+  await _removeFromFriday(id);
 }
 
 // públicos (COM SENHA)
@@ -397,14 +468,16 @@ function openRegisterLeaveModal(){
     return;
   }
   populateEmployeeSelect();
-  document.getElementById('registerLeaveModal').classList.remove('hidden');
+  document.getElementById('registerLeaveModal')?.classList.remove('hidden');
 }
 function closeRegisterLeaveModal(){
-  document.getElementById('registerLeaveModal').classList.add('hidden');
+  document.getElementById('registerLeaveModal')?.classList.add('hidden');
 }
 
 function populateEmployeeSelect(){
   const s = document.getElementById('leaveEmployeeSelect');
+  if (!s) return;
+
   s.innerHTML = '<option value="">Selecione…</option>';
 
   const leavesToday = selectedFriday ? (fridayData[selectedFriday] || []) : [];
@@ -422,7 +495,7 @@ function populateEmployeeSelect(){
 
 document.getElementById('registerLeaveForm')?.addEventListener('submit', async (e)=>{
   e.preventDefault();
-  const empId = parseInt(document.getElementById('leaveEmployeeSelect').value, 10);
+  const empId = parseInt(document.getElementById('leaveEmployeeSelect')?.value, 10);
   if (!empId) return;
   await dbUpsertLeave(empId, selectedFriday);
   closeRegisterLeaveModal();
@@ -439,7 +512,6 @@ function closeEmployeesPage(){
   hideAddEmployeeForm();
 }
 
-/* abre com senha */
 function openEmployeesWithPassword(){
   requirePasswordThen(() => openEmployeesPage(), {
     title: "🔒 Acesso Restrito",
@@ -482,7 +554,7 @@ function updateEmployeesPageKPIs(){
   if (todayEl) todayEl.textContent = today;
 }
 
-/* ======= LISTA AJUSTADA (AVATAR + AÇÕES) ======= */
+/* ======= LISTA (AVATAR + AÇÕES) ======= */
 function renderEmployeesPageList(){
   const tbody = document.getElementById("employeesListTable");
   if (!tbody) return;
@@ -555,15 +627,20 @@ function editEmployee(id){
 
   showAddEmployeeForm();
 
-  document.getElementById("employeeNamePage").value = emp.name || "";
-  document.getElementById("employeeEmailPage").value = emp.email || "";
-  document.getElementById("employeeDepartmentPage").value = emp.department || "Comercial";
+  const nameEl = document.getElementById("employeeNamePage");
+  const emailEl = document.getElementById("employeeEmailPage");
+  const depEl = document.getElementById("employeeDepartmentPage");
+
+  if (nameEl) nameEl.value = emp.name || "";
+  if (emailEl) emailEl.value = emp.email || "";
+  if (depEl) depEl.value = emp.department || "Comercial";
 
   const form = document.getElementById("addEmployeeFormPage");
-  form.dataset.editingId = String(id);
+  if (form) form.dataset.editingId = String(id);
 }
 
 async function deleteEmployee(id){
+  ensureSB();
   const emp = employeesDB.find(e => e.id === id);
   if (!emp) return;
 
@@ -573,7 +650,7 @@ async function deleteEmployee(id){
   const { error } = await sb.from("funcionarios").delete().eq("id", id);
   if (error){
     console.error(error);
-    showInfoModal("❌ Erro", `<div>${escapeHtml(error.message)}</div>`);
+    showInfoModal("❌ Erro", `<div class="text-sm">${escapeHtml(error.message)}</div>`);
     return;
   }
 
@@ -583,6 +660,7 @@ async function deleteEmployee(id){
 /* ======= SUBMIT: INSERT ou UPDATE ======= */
 document.getElementById("addEmployeeFormPage")?.addEventListener("submit", async (e)=>{
   e.preventDefault();
+  ensureSB();
 
   const form = document.getElementById("addEmployeeFormPage");
   const editingId = form?.dataset?.editingId ? parseInt(form.dataset.editingId, 10) : null;
@@ -602,7 +680,7 @@ document.getElementById("addEmployeeFormPage")?.addEventListener("submit", async
 
   if (res.error){
     console.error(res.error);
-    showInfoModal("❌ Erro", `<div>${escapeHtml(res.error.message)}</div>`);
+    showInfoModal("❌ Erro", `<div class="text-sm">${escapeHtml(res.error.message)}</div>`);
     return;
   }
 
@@ -627,8 +705,6 @@ function updateAll(){
 document.addEventListener("DOMContentLoaded", async ()=>{
   initPeriodSelectors();
   await syncFromDB();
-  renderFridaysGrid();
-  renderLeavesTable();
 });
 
 /* ===================== EXPORT ===================== */
@@ -644,10 +720,8 @@ Object.assign(window, {
   openEmployeesWithPassword,
   showAddEmployeeForm, hideAddEmployeeForm,
 
-  // novos exports (precisa pro onclick)
   editEmployeeWithPassword,
   deleteEmployeeWithPassword,
 
   showAllLeaves, showPendingRequests
 });
-
