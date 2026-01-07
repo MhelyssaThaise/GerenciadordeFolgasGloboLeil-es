@@ -35,7 +35,9 @@
               class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
               📊 Ver Todas as Folgas
             </button>
-            <button onclick="showPasswordModal?.()"
+
+            <!-- ✅ corrigido: não chama showPasswordModal direto -->
+            <button onclick="openEmployeesWithPassword?.()"
               class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
               👥 Colaboradores
             </button>
@@ -51,9 +53,7 @@
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center">
-          <div class="bg-blue-100 p-3 rounded-lg">
-            <span class="text-2xl">👥</span>
-          </div>
+          <div class="bg-blue-100 p-3 rounded-lg"><span class="text-2xl">👥</span></div>
           <div class="ml-4">
             <p class="text-sm text-gray-600">Total Colaboradores</p>
             <p class="text-2xl font-bold text-gray-900" id="totalEmployees">0</p>
@@ -63,9 +63,7 @@
 
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center">
-          <div class="bg-green-100 p-3 rounded-lg">
-            <span class="text-2xl">✅</span>
-          </div>
+          <div class="bg-green-100 p-3 rounded-lg"><span class="text-2xl">✅</span></div>
           <div class="ml-4">
             <p class="text-sm text-gray-600">De Folga</p>
             <p class="text-2xl font-bold text-green-600" id="onLeave">0</p>
@@ -75,9 +73,7 @@
 
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center">
-          <div class="bg-orange-100 p-3 rounded-lg">
-            <span class="text-2xl">💼</span>
-          </div>
+          <div class="bg-orange-100 p-3 rounded-lg"><span class="text-2xl">💼</span></div>
           <div class="ml-4">
             <p class="text-sm text-gray-600">Trabalhando</p>
             <p class="text-2xl font-bold text-orange-600" id="working">0</p>
@@ -87,9 +83,7 @@
 
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center">
-          <div class="bg-yellow-100 p-3 rounded-lg">
-            <span class="text-2xl">⏳</span>
-          </div>
+          <div class="bg-yellow-100 p-3 rounded-lg"><span class="text-2xl">⏳</span></div>
           <div class="ml-4">
             <p class="text-sm text-gray-600">Pendentes</p>
             <p class="text-2xl font-bold text-yellow-600" id="pendingRequests">0</p>
@@ -146,9 +140,8 @@
         <p class="text-gray-600 text-sm">Gerencie as folgas dos colaboradores</p>
       </div>
 
-      <!-- ✅ Fallback visual (não fica branco) -->
       <div id="tableHint" class="px-6 py-3 text-sm text-gray-600 bg-gray-50 border-b border-gray-200">
-        Selecione um mês/ano e clique em uma sexta-feira para carregar os colaboradores.
+        Selecione um mês/ano e clique em uma sexta-feira para carregar as folgas registradas.
       </div>
 
       <div class="overflow-x-auto max-h-96 overflow-y-auto">
@@ -163,11 +156,10 @@
             </tr>
           </thead>
 
-          <!-- ✅ Linha inicial pra nunca ficar "branco" -->
           <tbody id="employeeTableBody">
             <tr>
               <td class="py-6 px-6 text-gray-500" colspan="5">
-                Selecione uma sexta-feira para visualizar os colaboradores.
+                Selecione uma sexta-feira para visualizar as folgas registradas.
               </td>
             </tr>
           </tbody>
@@ -187,7 +179,8 @@
     </div>
   </div>
 
-  <div id="passwordModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50" style="display:none;">
+  <!-- ✅ removi style="display:none;" para não travar -->
+  <div id="passwordModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
     <div class="bg-white rounded-xl shadow-xl max-w-sm w-full p-5">
       <h3 id="passwordModalTitle" class="text-lg font-semibold mb-1">🔒 Acesso Restrito</h3>
       <p id="passwordModalSubtitle" class="text-sm text-gray-600 mb-4">Digite a senha para continuar</p>
@@ -208,7 +201,6 @@
       <form id="registerLeaveForm" class="space-y-3">
         <label class="block text-sm font-medium">Colaborador</label>
 
-        <!-- ✅ Estado inicial do select pra não parecer "vazio do nada" -->
         <select id="leaveEmployeeSelect" class="w-full border rounded-lg px-3 py-2">
           <option value="">Carregando colaboradores...</option>
         </select>
@@ -223,7 +215,6 @@
 
   <!-- Página de Colaboradores -->
   <div id="employeesPage" class="hidden fixed inset-0 z-40 overflow-y-auto">
-    <!-- (mantive igual ao seu original, sem alterar conteúdo) -->
     <header class="monday-gradient text-white shadow-lg sticky top-0 z-10">
       <div class="max-w-7xl mx-auto px-6 py-4">
         <div class="flex items-center justify-between">
@@ -323,54 +314,6 @@
     </div>
   </div>
 
-  <!-- Modal Editar -->
-  <div id="editEmployeeModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
-    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
-      <h3 class="text-lg font-semibold mb-4">✏️ Editar colaborador</h3>
-      <form id="editEmployeeForm" class="space-y-3">
-        <div>
-          <label class="block text-sm font-medium">Nome</label>
-          <input id="editEmployeeName" type="text" class="w-full border rounded-lg px-3 py-2" required />
-        </div>
-        <div>
-          <label class="block text-sm font-medium">E-mail</label>
-          <input id="editEmployeeEmail" type="email" class="w-full border rounded-lg px-3 py-2" required />
-        </div>
-        <div>
-          <label class="block text-sm font-medium">Departamento</label>
-          <select id="editEmployeeDepartment" class="w-full border rounded-lg px-3 py-2">
-            <option value="Comercial">Comercial</option>
-            <option value="Tecnologia">Tecnologia</option>
-            <option value="Backoffice">Backoffice</option>
-            <option value="custom">Outro (digitar)</option>
-          </select>
-          <input id="customDepartmentEdit" class="hidden mt-2 w-full border rounded-lg px-3 py-2" placeholder="Novo departamento" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium">Foto</label>
-          <input id="employeePhotoEdit" type="file" accept="image/*" />
-          <div id="photoPreviewEdit" class="mt-2 w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-2xl text-gray-400">📷</div>
-        </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeEditEmployeeModal?.()">Cancelar</button>
-          <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Salvar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Modal Excluir -->
-  <div id="deleteConfirmModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
-    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
-      <h3 class="text-lg font-semibold mb-3">🗑️ Excluir colaborador</h3>
-      <div id="deleteEmployeeInfo" class="mb-4"></div>
-      <div class="flex justify-end gap-2">
-        <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeDeleteConfirmModal?.()">Cancelar</button>
-        <button type="button" class="px-3 py-2 bg-red-600 text-white rounded-lg" onclick="executeConfirmedDeletion?.()">Excluir</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Supabase UMD + inicialização -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script>
@@ -379,40 +322,9 @@
 
     window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     console.log("Supabase conectado (UMD)!", window.supabase);
-
-    // ✅ FIX VISUAL: nunca deixar a tabela "branca" ao trocar mês/ano
-    // Isso NÃO substitui o seu script.js. Só garante feedback ao usuário.
-    (function () {
-      const tbody = document.getElementById("employeeTableBody");
-      const yearSelect = document.getElementById("yearSelect");
-      const monthSelect = document.getElementById("monthSelect");
-      const title = document.getElementById("tableTitle");
-
-      function setPlaceholder(msg) {
-        if (!tbody) return;
-        tbody.innerHTML = `
-          <tr>
-            <td class="py-6 px-6 text-gray-500" colspan="5">${msg}</td>
-          </tr>
-        `;
-      }
-
-      function resetOnPeriodChange() {
-        if (title) title.textContent = "Colaboradores - Selecione uma sexta-feira";
-        setPlaceholder("Selecione uma sexta-feira para visualizar os colaboradores.");
-      }
-
-      yearSelect?.addEventListener("change", resetOnPeriodChange);
-      monthSelect?.addEventListener("change", resetOnPeriodChange);
-
-      // estado inicial
-      setPlaceholder("Selecione uma sexta-feira para visualizar os colaboradores.");
-    })();
   </script>
 
-  <!-- Seu JS principal (usa window.supabase) -->
+  <!-- Seu JS principal -->
   <script src="./script.js" defer></script>
 </body>
 </html>
-
-
