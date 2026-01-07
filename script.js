@@ -1,8 +1,9 @@
 /* =========================================================
-   GESTÃO DE FOLGAS — script.js (COM SENHA + COLABORADORES FUNCIONANDO)
+   GESTÃO DE FOLGAS — script.js (COM SENHA + COLABORADORES AJUSTADO)
    - Tabela principal: mostra SOMENTE folgas registradas na sexta
    - Senha obrigatória: aprovar / rejeitar / remover / excluir / remover folga
    - Botão "Colaboradores": pede senha e abre a tela
+   - Tela de colaboradores: lista com avatar + ações editar/excluir (com senha)
    ========================================================= */
 
 const PASSWORD = "03082020";
@@ -61,7 +62,6 @@ function showPasswordModal(actionFn, opts = {}){
   if (title) title.textContent = opts.title || "🔒 Acesso Restrito";
   if (sub) sub.textContent = opts.subtitle || "Digite a senha para continuar";
 
-  // ✅ guarda a ação a ser executada após a senha
   passwordModalAction = typeof actionFn === "function" ? actionFn : null;
 
   err?.classList.add("hidden");
@@ -74,12 +74,11 @@ function showPasswordModal(actionFn, opts = {}){
 function closePasswordModal(){
   const modal = document.getElementById("passwordModal");
   modal?.classList.add("hidden");
-  // ✅ NÃO precisa limpar aqui, a gente limpa com controle no submit
-  // passwordModalAction = null;
 }
 
 document.getElementById("passwordForm")?.addEventListener("submit", (e) => {
   e.preventDefault();
+
   const input = document.getElementById("passwordInput");
   const err   = document.getElementById("passwordError");
   const val = input?.value || "";
@@ -89,13 +88,11 @@ document.getElementById("passwordForm")?.addEventListener("submit", (e) => {
     return;
   }
 
-  // ✅ PEGA A AÇÃO ANTES de fechar/limpar (esse era o bug)
   const fn = passwordModalAction;
   passwordModalAction = null;
 
   closePasswordModal();
 
-  // ✅ suporta ações async também
   try {
     if (typeof fn === "function") {
       Promise.resolve(fn()).catch(console.error);
@@ -450,6 +447,7 @@ function closeEmployeesPage(){
   hideAddEmployeeForm();
 }
 
+/* abre com senha */
 function openEmployeesWithPassword(){
   requirePasswordThen(() => openEmployeesPage(), {
     title: "🔒 Acesso Restrito",
@@ -461,17 +459,26 @@ function showAddEmployeeForm(){
   document.getElementById("addEmployeeFormSection")?.classList.remove("hidden");
 }
 function hideAddEmployeeForm(){
-  document.getElementById("addEmployeeFormSection")?.classList.add("hidden");
-  document.getElementById("addEmployeeFormPage")?.reset?.();
+  const section = document.getElementById("addEmployeeFormSection");
+  section?.classList.add("hidden");
+
+  const form = document.getElementById("addEmployeeFormPage");
+  form?.reset?.();
+  if (form?.dataset?.editingId) delete form.dataset.editingId;
+
   const prev = document.getElementById("photoPreviewPage");
   if (prev) prev.innerHTML = "📷";
 }
 
 function updateEmployeesPageKPIs(){
-  document.getElementById("totalEmployeesPage").textContent = employeesDB.length;
+  const totalEl = document.getElementById("totalEmployeesPage");
+  const depEl   = document.getElementById("totalDepartments");
+  const todayEl = document.getElementById("todayRegistrations");
+
+  if (totalEl) totalEl.textContent = employeesDB.length;
 
   const departments = new Set(employeesDB.map(e => (e.department||"").trim()).filter(Boolean));
-  document.getElementById("totalDepartments").textContent = departments.size;
+  if (depEl) depEl.textContent = departments.size;
 
   const now = new Date();
   let today = 0;
@@ -480,47 +487,130 @@ function updateEmployeesPageKPIs(){
     const dt = new Date(e.created_at);
     if (dt.getFullYear()===now.getFullYear() && dt.getMonth()===now.getMonth() && dt.getDate()===now.getDate()) today++;
   });
-  document.getElementById("todayRegistrations").textContent = today;
+  if (todayEl) todayEl.textContent = today;
 }
 
+/* ======= LISTA AJUSTADA (AVATAR + AÇÕES) ======= */
 function renderEmployeesPageList(){
   const tbody = document.getElementById("employeesListTable");
   if (!tbody) return;
 
   if (!employeesDB.length){
     tbody.innerHTML = `
-      <tr><td colspan="5" class="py-6 px-4 text-gray-500">Nenhum colaborador cadastrado.</td></tr>`;
+      <tr>
+        <td colspan="5" class="py-6 px-4 text-gray-500">Nenhum colaborador cadastrado.</td>
+      </tr>`;
     return;
   }
 
-  tbody.innerHTML = employeesDB.map(e=>{
-    const created = e.created_at ? new Date(e.created_at).toLocaleDateString("pt-BR") : "-";
+  tbody.innerHTML = employeesDB.map(emp=>{
+    const created = emp.created_at ? new Date(emp.created_at).toLocaleDateString("pt-BR") : "-";
+
+    const photo = emp.photo_url
+      ? `<img src="${emp.photo_url}" class="w-10 h-10 rounded-full object-cover border border-gray-200">`
+      : `<div class="w-10 h-10 rounded-full bg-purple-500 text-white flex items-center justify-center font-bold">
+           ${(emp.name || "?").charAt(0)}
+         </div>`;
+
     return `
-      <tr class="border-b">
-        <td class="py-3 px-4">${escapeHtml(e.name || "-")}</td>
-        <td class="py-3 px-4 text-gray-600">${escapeHtml(e.email || "-")}</td>
-        <td class="py-3 px-4">${escapeHtml(e.department || "-")}</td>
-        <td class="py-3 px-4 text-gray-600">${created}</td>
-        <td class="py-3 px-4 text-center"><span class="text-xs text-gray-400">—</span></td>
+      <tr class="border-b hover:bg-gray-50">
+        <td class="py-4 px-4">
+          <div class="flex items-center gap-3">
+            ${photo}
+            <div class="leading-tight">
+              <div class="font-medium text-gray-900">${escapeHtml(emp.name || "-")}</div>
+              <div class="text-xs text-gray-500">${escapeHtml(emp.email || "")}</div>
+            </div>
+          </div>
+        </td>
+
+        <td class="py-4 px-4">
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
+            ${escapeHtml(emp.department || "-")}
+          </span>
+        </td>
+
+        <td class="py-4 px-4 text-gray-600">${created}</td>
+
+        <td class="py-4 px-4 text-center">
+          <button class="text-purple-700 hover:underline mr-3"
+            onclick="editEmployeeWithPassword(${emp.id})">Editar</button>
+          <button class="text-red-600 hover:underline"
+            onclick="deleteEmployeeWithPassword(${emp.id})">Excluir</button>
+        </td>
       </tr>`;
   }).join("");
 }
 
+/* ======= AÇÕES (EDITAR / EXCLUIR) COM SENHA ======= */
+function editEmployeeWithPassword(id){
+  requirePasswordThen(() => editEmployee(id), {
+    title: "🔒 Confirmação",
+    subtitle: "Digite a senha para editar colaborador"
+  });
+}
+
+function deleteEmployeeWithPassword(id){
+  requirePasswordThen(() => deleteEmployee(id), {
+    title: "🔒 Confirmação",
+    subtitle: "Digite a senha para excluir colaborador"
+  });
+}
+
+function editEmployee(id){
+  const emp = employeesDB.find(e => e.id === id);
+  if (!emp) return;
+
+  showAddEmployeeForm();
+
+  document.getElementById("employeeNamePage").value = emp.name || "";
+  document.getElementById("employeeEmailPage").value = emp.email || "";
+  document.getElementById("employeeDepartmentPage").value = emp.department || "Comercial";
+
+  const form = document.getElementById("addEmployeeFormPage");
+  form.dataset.editingId = String(id);
+}
+
+async function deleteEmployee(id){
+  const emp = employeesDB.find(e => e.id === id);
+  if (!emp) return;
+
+  const ok = confirm(`Excluir colaborador "${emp.name}"?`);
+  if (!ok) return;
+
+  const { error } = await sb.from("funcionarios").delete().eq("id", id);
+  if (error){
+    console.error(error);
+    showInfoModal("❌ Erro", `<div>${escapeHtml(error.message)}</div>`);
+    return;
+  }
+
+  await syncFromDB();
+}
+
+/* ======= SUBMIT: INSERT ou UPDATE ======= */
 document.getElementById("addEmployeeFormPage")?.addEventListener("submit", async (e)=>{
   e.preventDefault();
+
+  const form = document.getElementById("addEmployeeFormPage");
+  const editingId = form?.dataset?.editingId ? parseInt(form.dataset.editingId, 10) : null;
+
   const name = document.getElementById("employeeNamePage")?.value?.trim();
   const email = document.getElementById("employeeEmailPage")?.value?.trim();
   const department = document.getElementById("employeeDepartmentPage")?.value?.trim() || "";
 
   if (!name || !email) return;
 
-  const { error } = await sb.from("funcionarios").insert({
-    name, email, department, photo_url: null
-  });
+  let res;
+  if (editingId){
+    res = await sb.from("funcionarios").update({ name, email, department }).eq("id", editingId);
+  } else {
+    res = await sb.from("funcionarios").insert({ name, email, department, photo_url: null });
+  }
 
-  if (error){
-    console.error(error);
-    showInfoModal("❌ Erro", `<div>${escapeHtml(error.message)}</div>`);
+  if (res.error){
+    console.error(res.error);
+    showInfoModal("❌ Erro", `<div>${escapeHtml(res.error.message)}</div>`);
     return;
   }
 
@@ -561,6 +651,10 @@ Object.assign(window, {
   openEmployeesPage, closeEmployeesPage,
   openEmployeesWithPassword,
   showAddEmployeeForm, hideAddEmployeeForm,
+
+  // novos exports (precisa pro onclick)
+  editEmployeeWithPassword,
+  deleteEmployeeWithPassword,
 
   showAllLeaves, showPendingRequests
 });
