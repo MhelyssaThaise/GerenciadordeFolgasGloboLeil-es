@@ -61,6 +61,7 @@ function showPasswordModal(actionFn, opts = {}){
   if (title) title.textContent = opts.title || "🔒 Acesso Restrito";
   if (sub) sub.textContent = opts.subtitle || "Digite a senha para continuar";
 
+  // ✅ guarda a ação a ser executada após a senha
   passwordModalAction = typeof actionFn === "function" ? actionFn : null;
 
   err?.classList.add("hidden");
@@ -73,7 +74,8 @@ function showPasswordModal(actionFn, opts = {}){
 function closePasswordModal(){
   const modal = document.getElementById("passwordModal");
   modal?.classList.add("hidden");
-  passwordModalAction = null;
+  // ✅ NÃO precisa limpar aqui, a gente limpa com controle no submit
+  // passwordModalAction = null;
 }
 
 document.getElementById("passwordForm")?.addEventListener("submit", (e) => {
@@ -87,10 +89,20 @@ document.getElementById("passwordForm")?.addEventListener("submit", (e) => {
     return;
   }
 
-  closePasswordModal();
+  // ✅ PEGA A AÇÃO ANTES de fechar/limpar (esse era o bug)
   const fn = passwordModalAction;
   passwordModalAction = null;
-  try { fn?.(); } catch (ex) { console.error(ex); }
+
+  closePasswordModal();
+
+  // ✅ suporta ações async também
+  try {
+    if (typeof fn === "function") {
+      Promise.resolve(fn()).catch(console.error);
+    }
+  } catch (ex) {
+    console.error(ex);
+  }
 });
 
 function requirePasswordThen(actionFn, opts){
@@ -103,7 +115,6 @@ function initPeriodSelectors(){
   const monthSel = document.getElementById("monthSelect");
   if (!yearSel || !monthSel) return;
 
-  // anos: -2 .. +2
   const base = new Date().getFullYear();
   yearSel.innerHTML = "";
   for (let y = base - 2; y <= base + 2; y++){
@@ -360,7 +371,6 @@ async function _removeFromFriday(id){
   syncFromDB();
 }
 async function _toggleStatus(id){
-  // "Remover folga" = deletar registro
   await sb.from('folgas').delete().eq('id', id);
   syncFromDB();
 }
@@ -440,7 +450,6 @@ function closeEmployeesPage(){
   hideAddEmployeeForm();
 }
 
-// ✅ função do botão do header (pede senha e abre)
 function openEmployeesWithPassword(){
   requirePasswordThen(() => openEmployeesPage(), {
     title: "🔒 Acesso Restrito",
@@ -497,7 +506,6 @@ function renderEmployeesPageList(){
   }).join("");
 }
 
-// Adicionar colaborador (básico)
 document.getElementById("addEmployeeFormPage")?.addEventListener("submit", async (e)=>{
   e.preventDefault();
   const name = document.getElementById("employeeNamePage")?.value?.trim();
@@ -543,20 +551,16 @@ document.addEventListener("DOMContentLoaded", async ()=>{
 
 /* ===================== EXPORT ===================== */
 Object.assign(window, {
-  // modais
   showInfoModal, closeInfoModal,
   showPasswordModal, closePasswordModal,
 
-  // folgas
   openRegisterLeaveModal, closeRegisterLeaveModal,
   approveLeave, rejectLeave, removeFromFriday, toggleStatus,
   selectFriday,
 
-  // colaboradores
   openEmployeesPage, closeEmployeesPage,
   openEmployeesWithPassword,
   showAddEmployeeForm, hideAddEmployeeForm,
 
-  // header extras
   showAllLeaves, showPendingRequests
 });
