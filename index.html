@@ -10,142 +10,338 @@
 
 <body class="bg-gray-50 font-sans">
 
-<!-- HEADER -->
-<header class="monday-gradient text-white shadow-lg">
-  <div class="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
-    <div class="flex items-center gap-2">
-      <img src="logo.png" class="h-10" />
-      <div>
-        <h1 class="text-3xl font-bold">Gestão de Folgas</h1>
-        <p class="text-purple-100 text-sm">Controle de folgas Globo Leilões</p>
-      </div>
-    </div>
-
-    <div class="flex items-center gap-4">
-      <div class="text-right">
-        <div class="text-sm text-purple-100">Visualizando</div>
-        <div class="text-xl font-semibold" id="currentView">Todas as Sextas</div>
+  <!-- HEADER -->
+  <header class="monday-gradient text-white shadow-lg">
+    <div class="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <img src="logo.png" class="h-10 w-auto" alt="Logo" />
+        <div>
+          <h1 class="text-3xl font-bold">Gestão de Folgas</h1>
+          <p class="text-purple-100 text-sm">Controle de folgas Globo Leilões</p>
+        </div>
       </div>
 
-      <button type="button" onclick="showPendingRequests?.()"
-        class="bg-yellow-500 text-white px-4 py-2 rounded-lg">
-        ⏳ Pendências (<span id="headerPendingCount">0</span>)
-      </button>
+      <div class="flex items-center gap-4">
+        <div class="text-right">
+          <div class="text-sm text-purple-100">Visualizando</div>
+          <div class="text-xl font-semibold" id="currentView">Todas as Sextas</div>
+        </div>
 
-      <button type="button" onclick="showAllLeaves?.()"
-        class="bg-white/20 text-white px-4 py-2 rounded-lg">
-        📊 Ver Todas
-      </button>
-
-      <button type="button" onclick="openEmployeesWithPassword?.()"
-        class="bg-white/20 text-white px-4 py-2 rounded-lg">
-        👥 Colaboradores
-      </button>
-    </div>
-  </div>
-</header>
-
-<!-- MAIN -->
-<main class="max-w-7xl mx-auto px-6 py-8">
-
-  <!-- KPI -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-    <div class="bg-white p-6 rounded-xl shadow">
-      <p class="text-sm text-gray-600">Total Colaboradores</p>
-      <p id="totalEmployees" class="text-2xl font-bold">0</p>
-    </div>
-    <div class="bg-white p-6 rounded-xl shadow">
-      <p class="text-sm text-gray-600">De Folga</p>
-      <p id="onLeave" class="text-2xl font-bold text-green-600">0</p>
-    </div>
-    <div class="bg-white p-6 rounded-xl shadow">
-      <p class="text-sm text-gray-600">Trabalhando</p>
-      <p id="working" class="text-2xl font-bold text-orange-600">0</p>
-    </div>
-    <div class="bg-white p-6 rounded-xl shadow">
-      <p class="text-sm text-gray-600">Pendentes</p>
-      <p id="pendingRequests" class="text-2xl font-bold text-yellow-600">0</p>
-    </div>
-  </div>
-
-  <!-- FILTRO -->
-  <div class="bg-white p-6 rounded-xl shadow mb-6 flex gap-4">
-    <select id="yearSelect" class="border px-3 py-2 rounded"></select>
-    <select id="monthSelect" class="border px-3 py-2 rounded"></select>
-  </div>
-
-  <!-- SEXTAS -->
-  <div class="bg-white p-6 rounded-xl shadow mb-6">
-    <div class="flex justify-between mb-4">
-      <h2 class="text-xl font-semibold">Sextas-feiras</h2>
-      <button type="button" onclick="openRegisterLeaveModal?.()"
-        class="bg-[#16263E] text-white px-4 py-2 rounded-lg">
-        📝 Registrar Folga
-      </button>
-    </div>
-    <div id="fridaysGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
-  </div>
-
-  <!-- TABELA -->
-  <div class="bg-white rounded-xl shadow overflow-hidden">
-    <div class="p-6 border-b">
-      <h3 id="tableTitle" class="text-lg font-semibold">
-        Colaboradores - Selecione uma sexta-feira
-      </h3>
-    </div>
-
-    <table class="w-full">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="p-4 text-left">Colaborador</th>
-          <th class="p-4 text-left">Departamento</th>
-          <th class="p-4 text-left">Status</th>
-          <th class="p-4 text-left">Observações</th>
-          <th class="p-4 text-center">Ações</th>
-        </tr>
-      </thead>
-      <tbody id="employeeTableBody">
-        <tr>
-          <td colspan="5" class="p-6 text-center text-gray-500">
-            Selecione uma sexta-feira para visualizar as folgas.
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</main>
-
-<!-- MODAL SENHA -->
-<div id="passwordModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
-  <div class="bg-white p-6 rounded-xl w-full max-w-sm">
-    <h3 id="passwordModalTitle" class="text-lg font-semibold">🔒 Acesso Restrito</h3>
-    <p id="passwordModalSubtitle" class="text-sm text-gray-600 mb-4"></p>
-
-    <form id="passwordForm" class="space-y-3">
-      <input id="passwordInput" type="password" class="w-full border rounded px-3 py-2" />
-      <div id="passwordError" class="text-red-600 text-sm hidden">Senha incorreta.</div>
-
-      <div class="flex justify-end gap-2">
-        <button type="button" onclick="closePasswordModal()" class="border px-3 py-2 rounded">
-          Cancelar
+        <button type="button" onclick="showPendingRequests?.()"
+          class="bg-yellow-500 bg-opacity-90 hover:bg-opacity-100 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+          ⏳ Pendências (<span id="headerPendingCount">0</span>)
         </button>
-        <button type="submit" class="bg-[#16263E] text-white px-4 py-2 rounded">
-          Entrar
+
+        <button type="button" onclick="showAllLeaves?.()"
+          class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+          📊 Ver Todas
+        </button>
+
+        <button type="button" onclick="openEmployeesWithPassword?.()"
+          class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200">
+          👥 Colaboradores
         </button>
       </div>
-    </form>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+
+    <!-- KPI -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <p class="text-sm text-gray-600">Total Colaboradores</p>
+        <p id="totalEmployees" class="text-2xl font-bold text-gray-900">0</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <p class="text-sm text-gray-600">De Folga</p>
+        <p id="onLeave" class="text-2xl font-bold text-green-600">0</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <p class="text-sm text-gray-600">Trabalhando</p>
+        <p id="working" class="text-2xl font-bold text-orange-600">0</p>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <p class="text-sm text-gray-600">Pendentes</p>
+        <p id="pendingRequests" class="text-2xl font-bold text-yellow-600">0</p>
+      </div>
+    </div>
+
+    <!-- FILTRO -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6 flex flex-col sm:flex-row gap-4">
+      <div class="flex flex-col">
+        <label class="text-sm font-medium text-gray-700 mb-1">Ano</label>
+        <select id="yearSelect" class="border px-3 py-2 rounded-lg bg-white"></select>
+      </div>
+      <div class="flex flex-col">
+        <label class="text-sm font-medium text-gray-700 mb-1">Mês</label>
+        <select id="monthSelect" class="border px-3 py-2 rounded-lg bg-white"></select>
+      </div>
+    </div>
+
+    <!-- SEXTAS -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900">Sextas-feiras</h2>
+          <p class="text-sm text-gray-600">Clique em uma sexta para gerenciar as folgas</p>
+        </div>
+
+        <button type="button" onclick="openRegisterLeaveModal?.()"
+          class="bg-[#16263E] hover:bg-[#16263E]/90 text-white px-4 py-2 rounded-lg font-medium shadow transition">
+          📝 Registrar Folga
+        </button>
+      </div>
+
+      <div id="fridaysGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4"></div>
+    </div>
+
+    <!-- TABELA -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div class="p-6 border-b border-gray-200">
+        <h3 id="tableTitle" class="text-lg font-semibold text-gray-900">
+          Colaboradores - Selecione uma sexta-feira
+        </h3>
+        <p class="text-sm text-gray-600">Mostra somente as folgas registradas na sexta selecionada</p>
+      </div>
+
+      <div class="overflow-x-auto max-h-96 overflow-y-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+            <tr>
+              <th class="p-4 text-left font-semibold text-gray-700">Colaborador</th>
+              <th class="p-4 text-left font-semibold text-gray-700">Departamento</th>
+              <th class="p-4 text-left font-semibold text-gray-700">Status</th>
+              <th class="p-4 text-left font-semibold text-gray-700">Observações</th>
+              <th class="p-4 text-center font-semibold text-gray-700">Ações</th>
+            </tr>
+          </thead>
+
+          <tbody id="employeeTableBody">
+            <tr>
+              <td colspan="5" class="p-6 text-center text-gray-500">
+                Selecione uma sexta-feira para visualizar as folgas.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- INFO MODAL (necessário para showInfoModal) -->
+  <div id="infoModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 id="infoModalTitle" class="text-lg font-semibold">Título</h3>
+        <button type="button" onclick="closeInfoModal?.()" class="text-gray-500 hover:text-gray-700">✖</button>
+      </div>
+      <div id="infoModalContent" class="text-sm text-gray-700">...</div>
+    </div>
   </div>
-</div>
 
-<!-- SUPABASE -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script>
-  window.supabase = supabase.createClient(
-    "https://omyojnkydyuxnqaigrzy.supabase.co",
-    "SUA_CHAVE"
-  );
-</script>
+  <!-- MODAL SENHA -->
+  <div id="passwordModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-xl w-full max-w-sm shadow-xl">
+      <h3 id="passwordModalTitle" class="text-lg font-semibold">🔒 Acesso Restrito</h3>
+      <p id="passwordModalSubtitle" class="text-sm text-gray-600 mb-4"></p>
 
-<script src="./script.js" defer></script>
+      <form id="passwordForm" class="space-y-3">
+        <input id="passwordInput" type="password" class="w-full border rounded-lg px-3 py-2" placeholder="Senha" />
+        <div id="passwordError" class="text-red-600 text-sm hidden">Senha incorreta.</div>
+
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="closePasswordModal?.()" class="border px-3 py-2 rounded-lg">
+            Cancelar
+          </button>
+          <button type="submit" class="bg-[#16263E] text-white px-4 py-2 rounded-lg">
+            Entrar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL REGISTRAR FOLGA -->
+  <div id="registerLeaveModal" class="fixed inset-0 bg-black/40 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-5">
+      <h3 class="text-lg font-semibold mb-4">📝 Registrar Folga</h3>
+      <form id="registerLeaveForm" class="space-y-3">
+        <label class="block text-sm font-medium text-gray-700">Colaborador</label>
+
+        <select id="leaveEmployeeSelect" class="w-full border rounded-lg px-3 py-2">
+          <option value="">Carregando colaboradores...</option>
+        </select>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="px-3 py-2 border rounded-lg" onclick="closeRegisterLeaveModal?.()">Cancelar</button>
+          <button type="submit" class="px-3 py-2 bg-[#16263E] text-white rounded-lg">Registrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Página de Colaboradores (VISUAL PADRÃO DO APP) -->
+  <div id="employeesPage" class="hidden fixed inset-0 z-40 overflow-y-auto bg-gray-50">
+    <header class="monday-gradient text-white shadow-lg sticky top-0 z-10">
+      <div class="max-w-7xl mx-auto px-6 py-5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <img src="logo.png" alt="Logo da Empresa" class="h-9 w-auto" />
+            <div class="leading-tight">
+              <h1 class="text-2xl font-bold">Colaboradores</h1>
+              <p class="text-purple-100 text-xs">Cadastro e gerenciamento</p>
+            </div>
+          </div>
+
+          <button type="button"
+            class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg font-medium"
+            onclick="closeEmployeesPage?.()">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-6 py-6">
+
+      <!-- KPIs -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div class="flex items-center gap-4">
+            <div class="bg-blue-100 p-3 rounded-lg"><span class="text-2xl">👥</span></div>
+            <div>
+              <p class="text-sm text-gray-600">Total colaboradores</p>
+              <p id="totalEmployeesPage" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div class="flex items-center gap-4">
+            <div class="bg-green-100 p-3 rounded-lg"><span class="text-2xl">📊</span></div>
+            <div>
+              <p class="text-sm text-gray-600">Departamentos</p>
+              <p id="totalDepartments" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div class="flex items-center gap-4">
+            <div class="bg-yellow-100 p-3 rounded-lg"><span class="text-2xl">🧾</span></div>
+            <div>
+              <p class="text-sm text-gray-600">Novos hoje</p>
+              <p id="todayRegistrations" class="text-2xl font-bold text-gray-900">0</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ações + Form -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">Gerenciar colaboradores</h2>
+            <p class="text-sm text-gray-600">Adicione e acompanhe a lista do time</p>
+          </div>
+
+          <button type="button"
+            class="px-4 py-2 bg-[#16263E] hover:bg-[#16263E]/90 text-white rounded-lg font-medium shadow"
+            onclick="showAddEmployeeForm?.()">
+            ➕ Adicionar colaborador
+          </button>
+        </div>
+
+        <div id="addEmployeeFormSection" class="hidden mt-5 bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <form id="addEmployeeFormPage" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+              <input id="employeeNamePage" type="text" class="w-full border rounded-lg px-3 py-2" required />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+              <input id="employeeEmailPage" type="email" class="w-full border rounded-lg px-3 py-2" required />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
+              <select id="employeeDepartmentPage" class="w-full border rounded-lg px-3 py-2">
+                <option value="Comercial">Comercial</option>
+                <option value="Tecnologia">Tecnologia</option>
+                <option value="Backoffice">Backoffice</option>
+                <option value="Administrativo">Administrativo</option>
+                <option value="Jurídico">Jurídico</option>
+                <option value="Pós-leilão">Pós-leilão</option>
+                <option value="Averbações e Avaliações">Averbações e Avaliações</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Foto (opcional)</label>
+              <input id="employeePhotoPage" type="file" accept="image/*" class="w-full" />
+              <div id="photoPreviewPage"
+                class="mt-2 w-20 h-20 rounded-full bg-white border border-gray-200 flex items-center justify-center text-2xl text-gray-400">
+                📷
+              </div>
+            </div>
+
+            <div class="md:col-span-2 flex justify-end gap-2">
+              <button type="button" class="px-4 py-2 border rounded-lg" onclick="hideAddEmployeeForm?.()">
+                Cancelar
+              </button>
+              <button type="submit" class="px-4 py-2 bg-[#16263E] text-white rounded-lg">
+                Salvar
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Lista -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-5 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-900">Lista de colaboradores</h3>
+          <p class="text-sm text-gray-600">Base cadastrada no sistema</p>
+        </div>
+
+        <div class="overflow-x-auto max-h-[70vh] overflow-y-auto">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+              <tr>
+                <th class="text-left py-3 px-4 font-semibold text-gray-700">Colaborador</th>
+                <th class="text-left py-3 px-4 font-semibold text-gray-700">E-mail</th>
+                <th class="text-left py-3 px-4 font-semibold text-gray-700">Departamento</th>
+                <th class="text-left py-3 px-4 font-semibold text-gray-700">Criado em</th>
+                <th class="text-center py-3 px-4 font-semibold text-gray-700">Ações</th>
+              </tr>
+            </thead>
+
+            <tbody id="employeesListTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- SUPABASE -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script>
+    window.supabase = supabase.createClient(
+      "https://omyojnkydyuxnqaigrzy.supabase.co",
+      "SUA_CHAVE"
+    );
+    console.log("Supabase conectado (UMD)!", window.supabase);
+  </script>
+
+  <!-- Seu JS principal -->
+  <script src="./script.js" defer></script>
 </body>
 </html>
